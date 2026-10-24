@@ -61,6 +61,10 @@ pub enum Event {
         verdict: String,
         provenance: VerificationProvenance,
     },
+    Exit {
+        at_ms: u64,
+        clean: bool,
+    },
 }
 
 impl Event {
@@ -73,7 +77,8 @@ impl Event {
             | Self::Resize { at_ms, .. }
             | Self::Marker { at_ms, .. }
             | Self::Check { at_ms, .. }
-            | Self::Critique { at_ms, .. } => *at_ms,
+            | Self::Critique { at_ms, .. }
+            | Self::Exit { at_ms, .. } => *at_ms,
         }
     }
 }

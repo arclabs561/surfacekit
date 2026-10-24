@@ -7,6 +7,7 @@
 //! newer [`screen::ScreenObserver`] grid; the two are kept namespaced because
 //! they model color and cell data independently.
 
+pub mod command_pty;
 pub mod emulator;
 pub mod pty;
 pub mod recording;
@@ -15,6 +16,7 @@ pub mod terminal;
 pub mod types;
 pub mod workspace;
 
+pub use command_pty::{CommandPty, SessionIo};
 pub use emulator::{TerminalEmulator, Vt100Emulator};
 pub use pty::PtyHandle;
 pub use recording::{RecordingPaths, TuiRecording};

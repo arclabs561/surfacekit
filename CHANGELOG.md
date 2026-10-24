@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.0 - unreleased
+
+- `Actor`, `ScriptedActor`, and `ExpectActor`, plus `run_actor` with drain,
+  pacing, timeout, and exit reporting.
+- Generic `CommandPty` and `SessionIo`, separate from the piku-specific
+  recorder; nonblocking reads and bounded write retries.
+- `Case::from_timeline` and `replay_case` re-execute a promoted case against a
+  fresh session and report missing checks as divergence.
+- `Event::Exit`, `LoopReport.error`, and replay `error` reporting.
+- End-to-end test: real PTY fixture, actor, timeline, promoted case, replay,
+  and a mutated check that diverges.
+
+
 ## 0.4.0 - unreleased
 
 - `TerminalProfile` capability presets (`vt100`, `xterm`, `ghostty`) and the

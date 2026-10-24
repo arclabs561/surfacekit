@@ -4,8 +4,8 @@
 //! reproduce a failure; a case that records a live URL or model cannot claim
 //! replay. Non-reproducible dependencies are named, not hidden.
 
-use crate::scenario::action::Step;
-use crate::scenario::timeline::VerificationProvenance;
+use crate::scenario::action::{ActionPlan, Resolution, Step};
+use crate::scenario::timeline::{Event, Timeline, VerificationProvenance};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -70,6 +70,43 @@ impl Case {
     #[must_use]
     pub fn is_reproducible(&self) -> bool {
         self.live_dependencies.is_empty()
+    }
+
+    /// The recorded actions as one plan, in append order.
+    #[must_use]
+    pub fn action_plan(&self) -> ActionPlan {
+        ActionPlan::new(Resolution::Plan, self.act.clone())
+    }
+
+    /// Promote the actions in a timeline. Checks and provenance are supplied
+    /// by the caller; a run without an oracle is not a case.
+    #[must_use]
+    pub fn from_timeline(
+        id: impl Into<String>,
+        timeline: &Timeline,
+        checks: Vec<CheckSpec>,
+    ) -> Self {
+        let act = timeline
+            .events()
+            .iter()
+            .filter_map(|event| match event {
+                Event::Action { plan, .. } => Some(Step::Plan {
+                    resolution: plan.resolution,
+                    steps: plan.steps.clone(),
+                }),
+                _ => None,
+            })
+            .collect();
+        Self {
+            id: id.into(),
+            init: Vec::new(),
+            act,
+            checks,
+            teardown: Vec::new(),
+            live_dependencies: Vec::new(),
+            provenance: Provenance::default(),
+            reward: None,
+        }
     }
 }
 

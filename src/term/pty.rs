@@ -303,7 +303,7 @@ fn shell_escape(s: &str) -> String {
 
 /// Set PTY window size via ioctl(TIOCSWINSZ).
 #[allow(unsafe_code)]
-fn set_pty_winsize(file: &std::fs::File, rows: u16, cols: u16) {
+pub(super) fn set_pty_winsize(file: &std::fs::File, rows: u16, cols: u16) {
     use std::os::unix::io::AsRawFd;
     #[cfg(target_os = "macos")]
     const TIOCSWINSZ: libc::c_ulong = 0x80087467;
