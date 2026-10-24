@@ -1,0 +1,21 @@
+[package]
+name = "surfacekit"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Surface-neutral observation and evidence packets for agentic testing."
+keywords = ["testing", "terminal", "pty", "agent"]
+categories = ["development-tools::testing"]
+readme = "README.md"
+repository = "https://github.com/arclabs561/surfacekit"
+
+[dependencies]
+crossterm = "0.28"
+libc = "0.2"
+nix = { version = "0.31", default-features = false, features = ["fs", "term", "signal", "user"] }
+rexpect = "0.7"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+tempfile = "3"
+vt100 = "0.16"
