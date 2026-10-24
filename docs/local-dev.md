@@ -12,9 +12,10 @@ feedback while editing, one full check before commit, identical proof in CI.
 | 2 — supply chain | `cargo-deny`, `cargo-audit` | Before release, weekly |
 | 3 — mutation | `cargo-mutants` | Before a major release, not per commit |
 
-`just check` runs tier 0 and `cargo publish --dry-run`. `just test` prefers
-`cargo-nextest` when installed and falls back to `cargo test`. A library still
-commits `Cargo.lock` so `--locked` is meaningful in CI.
+`just check` runs tier 0, a contract-only build, and `cargo publish --dry-run`.
+`just test` prefers `cargo-nextest` when installed and falls back to
+`cargo test`. `just e2e` runs the opt-in live provider check and requires a
+key. A library still commits `Cargo.lock` so `--locked` is meaningful in CI.
 
 ## Inner loop
 
@@ -73,20 +74,18 @@ once two packages need the same change.
 
 ## Pilot results
 
-Tier 0 was run on four clean packages on 2026-10-24:
+Tier 0 was run on four clean packages of different shapes on 2026-10-24:
 
-| Package | fmt | clippy (`--all-features`) | test | doc |
-| --- | --- | --- | --- | --- |
-| ablate | pass | pass | pass | pass |
-| pkgrank | pass | pass | pass | pass |
-| deformat | pass | pass | pass | pass |
-| embedd | pass | fail | pass | pass |
+- Two single-crate libraries with no features passed every stage.
+- One feature-gated library passed every stage.
+- One CUDA-backed, feature-gated library passed format, test, and doc, but
+  failed clippy under `--all-features`: its CUDA backend needs a toolkit the
+  machine does not have.
 
-`embedd` pulls a CUDA backend (`cudarc`) through `--all-features`; the machine
-has no CUDA toolkit, so the build script fails. `--all-features` is a
-host-dependent promise, not a default. Use it only when every feature builds on
-the runner; otherwise enumerate features and keep the all-features job on a
-runner that has the required toolchain.
+That failure is the rule: `--all-features` is a host-dependent promise, not a
+default. Use it only when every feature builds on the runner; otherwise
+enumerate features and keep the all-features job on a runner that has the
+required toolchain.
 
 Further refinements from the cohort:
 
@@ -94,11 +93,14 @@ Further refinements from the cohort:
   `cargo-dist`; the command is a false failure there.
 - Feature-gated crates keep their own matrix and MSRV jobs. A generic justfile
   must not replace a richer CI with a weaker one.
+- Add a minimal-feature job (`cargo check --no-default-features`) when a crate
+  gates heavy dependencies; otherwise the default build hides a broken
+  contract-only path.
 - A simple crate can adopt the workflow as a justfile without changing its CI;
   the two stay aligned because both run the same commands.
 
-Adoption so far: `surfacekit`, `ablate`, and `pkgrank` run `just check`.
-`deformat` and `embedd` keep their existing CI, which already exceeds the
+Adoption so far: the reference crate and two simple packages run `just check`.
+Two feature-rich packages keep their existing CI, which already exceeds the
 template; their patterns are the source of the refinements above.
 
 

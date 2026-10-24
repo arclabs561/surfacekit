@@ -74,6 +74,42 @@
         ]
       },
       "description": "Scenario claims tested by retained evidence. Valid shape does not establish that any claim is true."
+    },
+    "evidence": {
+      "type": "array",
+      "description": "Observed artifacts. Declarations may be empty; completeness is a runtime check.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "payload"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "argv",
+              "exit_status",
+              "stdout_or_artifact",
+              "run_record",
+              "pty_transcript",
+              "key_events",
+              "resize_events",
+              "browser_events",
+              "screenshots",
+              "dom_predicates",
+              "environment_identity",
+              "executable_check"
+            ]
+          },
+          "payload": {
+            "not": {
+              "type": "null"
+            }
+          }
+        }
+      }
     }
   },
   "required": [

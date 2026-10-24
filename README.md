@@ -4,36 +4,60 @@ Surface-neutral observation and evidence packets for agentic testing.
 
 The code is extracted from the terminal harness in [piku](https://github.com/arclabs561/piku) (MIT). The goal is one contract and one observer loop shared by terminal, subprocess, and browser evaluators, so evidence can move between a product, a judge, a notebook, and a comparator without each project re-implementing PTY parsing.
 
+## Install
+
+Default build (contract, PTY observation, scenarios, judge):
+
+```toml
+surfacekit = "0.2"
+```
+
+Contract only, without PTY, VT100, or judge dependencies:
+
+```toml
+surfacekit = { version = "0.2", default-features = false, features = ["contract"] }
+```
+
 ## Layers
 
-One published crate, four internal modules:
+| Module | Feature | Role |
+| --- | --- | --- |
+| `contract` | always | `Surface`, `Observation`, `EvidenceKind`, `Claim`, `Evidence`, `SurfacePacket`, JSON schema. |
+| `term` | `term` | Real PTY handle, VT100 screen observers, workspace diff, asciicast/JSONL recording. |
+| `scenario` | `scenario` | Clause-bound scenarios, terminal decisions, append-only evidence records. |
+| `judge` | `judge` | Deterministic checks, a provider-neutral judge seam, and order-swapped pairwise judging. |
 
-| Module | Role |
-| --- | --- |
-| `contract` | `Surface`, `Observation`, `EvidenceKind`, `Claim`, `SurfacePacket`, and the JSON schema. Serde only, no I/O. |
-| `term` | Real PTY handle, VT100 screen observers, workspace diff, asciicast/JSONL recording. |
-| `scenario` | Clause-bound scenarios, terminal decisions, append-only evidence records. |
-| `judge` | Deterministic checks and a provider-neutral judge seam. Prompts are caller data. |
-
-The modules are not separate packages because a published crate cannot depend on unpublished path crates.
+`scenario` requires `term`; `judge` requires `scenario`. The modules are not
+separate packages because a published crate cannot depend on unpublished path
+crates.
 
 ## Status
 
-Local scaffold. Not published. `cargo test` runs 30 tests: 2 contract, 4 term, 20 scenario, 4 judge. `cargo publish --dry-run` packages 33 files and verifies the build.
+`0.1.0` is published; `0.2.0` is staged locally. `cargo test` runs 38 tests.
+Two live OpenRouter tests are opt-in. CI runs format, clippy, nextest, a
+contract-only build, docs, and a publish dry-run.
 
 ## Boundary
 
-This crate observes and proves. It does not own product TUIs, provider transports, durable notebooks, comparison math, or coordination. Those stay with the projects that already implement them.
-
-## Development
-
-`just check` runs format, clippy, nextest (or `cargo test`), docs, and a publish dry-run. CI runs the same stages; see `docs/local-dev.md`. The design constraints from the literature are in `docs/grounding.md`.
+This crate observes and proves. It does not own product TUIs, provider
+transports, durable notebooks, comparison math, or coordination. Those stay
+with the projects that already implement them.
 
 ## Known couplings
 
-- Ledger fields retain `piku_*` names. Renaming them is a ledger schema revision, not a cosmetic edit.
-- The judge parses `piku_observations` from the model response. The prompt is caller-supplied; the response keys are not yet configurable.
-- `eval/` holds the original schemas and fixtures used by tests. `schema/` is the publishable copy.
+- The named scenario preset is `output-recovery-room`; there is no generic
+  packet builder yet.
+- Judge response keys (`subject_observations`) are fixed even though prompts are
+  caller-owned.
+- `eval/` keeps the historical schemas used by tests; `schema/` is the
+  published copy, with v1 archived under `schema/v1/`.
+
+## Development
+
+`just check` runs format, clippy, nextest (or `cargo test`), a contract-only
+build, docs, and a publish dry-run. `just e2e` runs the live OpenRouter pair.
+CI runs the same stages; see `docs/local-dev.md`. The design constraints from
+the literature are in `docs/grounding.md`.
 
 ## License
 

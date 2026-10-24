@@ -27,7 +27,7 @@ impl Drop for PtyHandle {
                 .finish()
                 .expect("managed-PTY recording must finish successfully");
         }
-        // Send Ctrl-D (EOF) to trigger piku's clean shutdown before the PTY
+        // Send Ctrl-D (EOF) to trigger subject's clean shutdown before the PTY
         // process is killed. Without this, SIGTERM arrives mid-render and can
         // leave zombie child processes (e.g. in-flight ollama requests).
         let _ = self.writer.write_all(b"\x04");
@@ -40,7 +40,7 @@ impl Drop for PtyHandle {
 impl PtyHandle {
     pub fn spawn(
         workspace: &Path,
-        piku_bin: &Path,
+        binary: &Path,
         provider_label: &str,
         model: &str,
         env_pairs: Vec<(String, String)>,
@@ -50,7 +50,7 @@ impl PtyHandle {
         let inner_cmd = format!(
             "cd {} && {} --provider {} --model {}",
             shell_escape(&workspace.to_string_lossy()),
-            piku_bin.display(),
+            binary.display(),
             provider_label,
             model,
         );
@@ -60,7 +60,7 @@ impl PtyHandle {
             cmd.env(k, v);
         }
 
-        let mut process = rexpect::process::PtyProcess::new(cmd).expect("failed to spawn piku");
+        let mut process = rexpect::process::PtyProcess::new(cmd).expect("failed to spawn subject");
         process.set_kill_timeout(Some(5_000));
 
         // Set PTY window size so crossterm::terminal::size() returns correct dims.

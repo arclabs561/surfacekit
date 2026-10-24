@@ -205,7 +205,7 @@ impl ScreenSnapshot {
         }
     }
 
-    /// Check if piku is ready for input (not thinking, not streaming).
+    /// Check if subject is ready for input (not thinking, not streaming).
     pub fn is_ready(&self) -> bool {
         if !self.cursor_visible {
             return false;

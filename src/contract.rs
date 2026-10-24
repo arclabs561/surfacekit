@@ -4,7 +4,7 @@
 //! serialized form is separately admitted by `eval/surface-evaluation.schema.json`
 //! so browser evaluators can exchange the same evidence without importing Rust.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
 pub const OUTPUT_RECOVERY_ROOM: &str = "output-recovery-room";
@@ -13,7 +13,7 @@ pub const OUTPUT_RECOVERY_ROOM: &str = "output-recovery-room";
 /// checks, because a rendered screen alone does not prove a terminal task.
 pub const CURRENT_SCHEMA_VERSION: u8 = 2;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Surface {
     Cli,
@@ -21,7 +21,7 @@ pub enum Surface {
     Web,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Observation {
     BoundedSubprocess,
@@ -29,7 +29,7 @@ pub enum Observation {
     BoundedPlaywright,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EvidenceKind {
     Argv,
@@ -48,7 +48,7 @@ pub enum EvidenceKind {
     ExecutableCheck,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Claim {
     OutputVisible,
@@ -70,14 +70,25 @@ const REQUIRED_CLAIMS: &[Claim] = &[
     Claim::HandoffIsNoticeNotReply,
 ];
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+/// One observed artifact. The kind says what it proves; the payload is the
+/// caller-owned body. Null payloads are treated as absent.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Evidence {
+    pub kind: EvidenceKind,
+    pub payload: serde_json::Value,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SurfacePacket {
     pub schema_version: u8,
-    pub scenario_id: &'static str,
+    pub scenario_id: String,
     pub surface: Surface,
     pub observation: Observation,
     pub evidence_kinds: BTreeSet<EvidenceKind>,
     pub claims: BTreeSet<Claim>,
+    /// Populated by the observer. A declaration-only packet may leave this
+    /// empty; [`SurfacePacket::validate_complete`] then fails.
+    pub evidence: Vec<Evidence>,
 }
 
 impl Surface {
@@ -128,11 +139,12 @@ impl SurfacePacket {
     pub fn output_recovery_room(surface: Surface) -> Self {
         Self {
             schema_version: CURRENT_SCHEMA_VERSION,
-            scenario_id: OUTPUT_RECOVERY_ROOM,
+            scenario_id: OUTPUT_RECOVERY_ROOM.to_string(),
             surface,
             observation: surface.observation(),
             evidence_kinds: surface.required_evidence(),
             claims: REQUIRED_CLAIMS.iter().copied().collect(),
+            evidence: Vec::new(),
         }
     }
 
@@ -160,6 +172,27 @@ impl SurfacePacket {
         }
         Ok(())
     }
+
+    /// Shape plus payload coverage. A packet passes this only when every
+    /// declared kind carries a non-null payload and nothing undeclared is
+    /// attached. The declaration-only preset fails here by design.
+    pub fn validate_complete(&self) -> Result<(), &'static str> {
+        self.validate()?;
+        let mut covered = BTreeSet::new();
+        for item in &self.evidence {
+            if !self.evidence_kinds.contains(&item.kind) {
+                return Err("evidence kind was not declared");
+            }
+            if item.payload.is_null() {
+                return Err("evidence payload is null");
+            }
+            covered.insert(item.kind);
+        }
+        if !self.evidence_kinds.is_subset(&covered) {
+            return Err("declared evidence kind has no payload");
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -183,6 +216,84 @@ mod tests {
             packet.validate(),
             Err("surface packet omits required evidence")
         );
+    }
+
+    fn complete_packet(surface: Surface) -> SurfacePacket {
+        let mut packet = SurfacePacket::output_recovery_room(surface);
+        packet.evidence = packet
+            .evidence_kinds
+            .iter()
+            .map(|kind| Evidence {
+                kind: *kind,
+                payload: serde_json::json!({"observed": true}),
+            })
+            .collect();
+        packet
+    }
+
+    #[test]
+    fn schema_admits_every_evidence_kind_and_version() {
+        let schema: serde_json::Value =
+            serde_json::from_str(include_str!("../schema/surface-evaluation.schema.json")).unwrap();
+        assert_eq!(
+            schema["properties"]["schema_version"]["const"],
+            serde_json::json!(CURRENT_SCHEMA_VERSION)
+        );
+        let listed = schema["properties"]["evidence"]["items"]["properties"]["kind"]["enum"]
+            .as_array()
+            .unwrap();
+        for kind in [
+            EvidenceKind::Argv,
+            EvidenceKind::ExitStatus,
+            EvidenceKind::StdoutOrArtifact,
+            EvidenceKind::RunRecord,
+            EvidenceKind::PtyTranscript,
+            EvidenceKind::KeyEvents,
+            EvidenceKind::ResizeEvents,
+            EvidenceKind::BrowserEvents,
+            EvidenceKind::Screenshots,
+            EvidenceKind::DomPredicates,
+            EvidenceKind::EnvironmentIdentity,
+            EvidenceKind::ExecutableCheck,
+        ] {
+            let value = serde_json::to_value(kind).unwrap();
+            assert!(listed.contains(&value), "schema omits {value}");
+        }
+    }
+
+    #[test]
+    fn complete_evidence_round_trips() {
+        let packet = complete_packet(Surface::Tui);
+        assert!(packet.validate_complete().is_ok());
+        let text = serde_json::to_string(&packet).unwrap();
+        let back: SurfacePacket = serde_json::from_str(&text).unwrap();
+        assert_eq!(packet, back);
+    }
+
+    #[test]
+    fn declaration_only_packets_fail_completeness() {
+        let packet = SurfacePacket::output_recovery_room(Surface::Tui);
+        assert_eq!(
+            packet.validate_complete(),
+            Err("declared evidence kind has no payload")
+        );
+    }
+
+    #[test]
+    fn undeclared_or_null_evidence_is_rejected() {
+        let mut packet = complete_packet(Surface::Tui);
+        packet.evidence.push(Evidence {
+            kind: EvidenceKind::Argv,
+            payload: serde_json::json!({}),
+        });
+        assert_eq!(
+            packet.validate_complete(),
+            Err("evidence kind was not declared")
+        );
+
+        let mut packet = complete_packet(Surface::Tui);
+        packet.evidence[0].payload = serde_json::Value::Null;
+        assert_eq!(packet.validate_complete(), Err("evidence payload is null"));
     }
 
     #[test]

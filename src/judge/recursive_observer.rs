@@ -8,7 +8,7 @@ use crate::term::{safe_truncate, CritiqueEntry};
 
 pub struct RecursiveReview {
     pub judge_observations: Vec<String>,
-    pub piku_observations: Vec<String>,
+    pub subject_observations: Vec<String>,
     pub verdict: String,
     /// Typed counter-attestations retained only after complete validation.
     pub claim_assessments: Vec<ObserverClaimRecord>,
@@ -84,7 +84,7 @@ pub fn observe(
     let Some(parsed) = outcome.value() else {
         return RecursiveReview {
             judge_observations: Vec::new(),
-            piku_observations: Vec::new(),
+            subject_observations: Vec::new(),
             verdict: format!(
                 "recursive observer unavailable ({}): {}",
                 outcome.status(),
@@ -126,7 +126,7 @@ pub fn observe(
     };
     RecursiveReview {
         judge_observations: strings("judge_observations"),
-        piku_observations: strings("piku_observations"),
+        subject_observations: strings("subject_observations"),
         verdict: parsed["verdict"]
             .as_str()
             .unwrap_or("recursive observer returned no verdict")

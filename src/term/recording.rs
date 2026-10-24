@@ -1,7 +1,7 @@
 //! Replayable, privacy-aware evidence for managed TUI evaluations.
 //!
 //! The `.cast` file is standard asciicast v2 for ordinary terminal playback.
-//! The adjacent JSONL trace is Piku-owned evidence: it keeps semantic actions,
+//! The adjacent JSONL trace is Subject-owned evidence: it keeps semantic actions,
 //! rendered-screen digests, and judge annotations without turning the cast
 //! format into an unportable database.
 
@@ -21,7 +21,7 @@ pub struct RecordingPaths {
     pub trace: PathBuf,
 }
 
-/// Writes an asciicast v2 replay and a Piku trace in lockstep.
+/// Writes an asciicast v2 replay and a Subject trace in lockstep.
 pub struct TuiRecording {
     started: Instant,
     cast: File,

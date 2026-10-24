@@ -24,6 +24,10 @@ jobs:
         run: cargo clippy --all-targets --all-features -- -D warnings
       - name: test
         run: cargo test --locked
+      - name: contract-only build
+        run: cargo check --no-default-features
+      - name: contract-only tests
+        run: cargo test --no-default-features --locked
       - name: docs
         run: cargo doc --no-deps --locked
       - name: package

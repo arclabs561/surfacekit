@@ -7,9 +7,9 @@
 //!
 //! # Why a rendered screen, not raw bytes
 //!
-//! A user does not experience the byte stream piku writes; they experience the
+//! A user does not experience the byte stream subject writes; they experience the
 //! *grid a terminal paints from it*. Asserting on raw bytes tests the wrong
-//! artifact: it passes when piku emits the right escapes in the wrong order and
+//! artifact: it passes when subject emits the right escapes in the wrong order and
 //! fails on a cosmetic reordering that renders identically. This module feeds
 //! the real PTY output through a `vt100::Parser` and exposes the resulting
 //! screen — the same thing the agentic judge loop observes — so a test asserts
@@ -22,7 +22,7 @@
 //! the parameterized `ESC [ t;b r`) *homes the cursor* as a side effect — the
 //! VT100 user guide says "the cursor is placed in the home position", and xterm
 //! implements the sequence as `set_tb_margins(...)` then `CursorSet(screen, 0,
-//! 0, ...)`. So when piku reset its scroll region and then erased from the
+//! 0, ...)`. So when subject reset its scroll region and then erased from the
 //! cursor down, the erase started at row 1 and wiped the whole frame. `vt100`
 //! reproduced that exactly. A real xterm does the same thing; the blank screen
 //! was a genuine product bug, and the parser was the tool that exposed it. The
@@ -40,7 +40,7 @@
 //! two cannot drift.
 
 /// Colors distilled from vt100 cells for style assertions (e.g. the ready caret
-/// is green). Kept small on purpose: tests assert on the handful of colors piku
+/// is green). Kept small on purpose: tests assert on the handful of colors subject
 /// actually uses as signals.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Color {
@@ -127,7 +127,7 @@ pub struct ScreenSnapshot {
 
 impl ScreenSnapshot {
     /// The row the cursor sits on (where the user is typing). Follows the
-    /// cursor rather than assuming a fixed row, because piku's DECSTBM layout
+    /// cursor rather than assuming a fixed row, because subject's DECSTBM layout
     /// places the prompt at different absolute rows depending on terminal size.
     #[must_use]
     pub fn input_row(&self) -> &str {
@@ -175,7 +175,7 @@ impl ScreenSnapshot {
         self.contents.contains(needle)
     }
 
-    /// Whether piku is ready for input (prompt present, not thinking/streaming).
+    /// Whether subject is ready for input (prompt present, not thinking/streaming).
     #[must_use]
     pub fn is_ready(&self) -> bool {
         if !self.cursor_visible {
@@ -228,7 +228,7 @@ pub struct ScreenObserver {
 impl ScreenObserver {
     /// Create an observer for a `rows`×`cols` grid. Use the *same* size the PTY
     /// winsize is set to (the harness does this for you) so the render matches
-    /// what piku drew into.
+    /// what subject drew into.
     #[must_use]
     pub fn new(rows: u16, cols: u16) -> Self {
         Self {

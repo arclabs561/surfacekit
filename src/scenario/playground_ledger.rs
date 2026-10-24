@@ -14,7 +14,7 @@ use sha2::{Digest, Sha256};
 #[path = "frozen_memory.rs"]
 mod frozen_memory;
 
-pub const EVALUATION_CONTRACT: &str = "piku-evaluation-envelope-v2";
+pub const EVALUATION_CONTRACT: &str = "surfacekit-evaluation-envelope-v2";
 pub const EVALUATOR_VERSION: &str = concat!("agentic-playground-rust/", env!("CARGO_PKG_VERSION"));
 pub const EVALUATION_STAGE_ID: &str = "summary";
 
@@ -132,8 +132,8 @@ pub struct TurnRecord<'a> {
     pub turn: usize,
     pub user_agent_provider: &'a str,
     pub user_agent_model: &'a str,
-    pub piku_provider: &'a str,
-    pub piku_model: &'a str,
+    pub subject_provider: &'a str,
+    pub subject_model: &'a str,
     pub action: &'a str,
     pub viewport: &'a str,
     pub workspace_diff: &'a str,
@@ -198,8 +198,8 @@ pub struct ConfigRecord<'a> {
     pub user_agent_model: &'a str,
     pub judge_provider: &'a str,
     pub judge_model: &'a str,
-    pub piku_provider: &'a str,
-    pub piku_model: &'a str,
+    pub subject_provider: &'a str,
+    pub subject_model: &'a str,
     pub model_selection_seed: Option<&'a str>,
     pub user_agent_client: &'static str,
     pub judge_client: &'static str,
@@ -208,9 +208,9 @@ pub struct ConfigRecord<'a> {
     /// baseline), or `adhoc`. Comparing a randomized run to a randomized run
     /// measures the sample, not the change.
     pub run_role: &'a str,
-    /// The piku revision under test, so a control run can be compared to the
+    /// The subject revision under test, so a control run can be compared to the
     /// same control on another build.
-    pub piku_revision: &'a str,
+    pub subject_revision: &'a str,
     /// Request and environment parameters. Two runs of the same models can
     /// still differ on these, so a comparison that ignores them is comparing
     /// two different experiments.
@@ -240,7 +240,7 @@ pub struct ScenarioContractRecord<'a> {
 }
 
 /// What the run cost. Harness figures come from the provider's own accounting;
-/// piku's are the token counts it printed in its status footer, which is the
+/// subject's are the token counts it printed in its status footer, which is the
 /// only usage it reports to an observer.
 #[derive(Serialize)]
 pub struct SpendRecord<'a> {
@@ -253,18 +253,18 @@ pub struct SpendRecord<'a> {
     pub harness_completion_tokens: u64,
     /// Reported by the provider. Zero means it reported no cost, not free.
     pub harness_cost_usd: f64,
-    pub piku_input_tokens: u64,
-    pub piku_output_tokens: u64,
+    pub subject_input_tokens: u64,
+    pub subject_output_tokens: u64,
     /// Wall clock split between the harness's own review calls and waiting on
-    /// piku. Cost and latency do not sit in the same place, and which half
+    /// subject. Cost and latency do not sit in the same place, and which half
     /// dominates decides what is worth changing.
     pub review_wall_ms: u64,
-    pub piku_wait_wall_ms: u64,
+    pub subject_wait_wall_ms: u64,
     pub change_wait_wall_ms: u64,
     pub acceptance_wall_ms: u64,
 }
 
-/// Deterministic audit of the semantic evidence Piku retained for this run.
+/// Deterministic audit of the semantic evidence Subject retained for this run.
 /// This sits beside judge records because it is an independent measurement,
 /// not another opinion about the terminal transcript.
 #[derive(Serialize)]
@@ -333,7 +333,7 @@ pub struct ControlMetrics {
     pub permission_prompts_observed: usize,
 }
 
-/// A bounded second-order review of the judge and the observed piku behavior.
+/// A bounded second-order review of the judge and the observed subject behavior.
 #[derive(Serialize)]
 pub struct ObserverRecord<'a> {
     pub schema_version: u8,
@@ -342,7 +342,7 @@ pub struct ObserverRecord<'a> {
     pub timestamp_secs: u64,
     pub persona: &'a str,
     pub judge_observations: &'a [String],
-    pub piku_observations: &'a [String],
+    pub subject_observations: &'a [String],
     pub verdict: &'a str,
     /// Typed counter-attestations retained only when the observer accounted
     /// for every primary claim with known turn evidence.
@@ -368,12 +368,12 @@ pub struct ImprovementHandoffRecord<'a> {
     pub hypotheses: &'a [String],
     pub next_action: &'static str,
     pub development_context_path: &'a str,
-    /// Copy of piku's own session file: the messages it sent, the tools it
-    /// called with arguments and results, and per-turn usage. Empty when piku
+    /// Copy of subject's own session file: the messages it sent, the tools it
+    /// called with arguments and results, and per-turn usage. Empty when subject
     /// reported no session on exit.
-    pub piku_session_path: &'a str,
+    pub subject_session_path: &'a str,
     /// Frozen copy of the semantic event record and any referenced artifacts.
-    pub piku_run_record_path: &'a str,
+    pub subject_run_record_path: &'a str,
 }
 
 /// The single shared-envelope projection of a completed playground run.
@@ -547,10 +547,10 @@ pub struct DevelopmentContextRecord<'a> {
     /// One line per executable acceptance check, pass or fail. These are the
     /// authoritative product outcomes; LLM review only annotates them.
     pub scenario_results: &'a [String],
-    /// Copy of piku's own session file, so the engineer can read what piku
+    /// Copy of subject's own session file, so the engineer can read what subject
     /// sent and called rather than only what the terminal showed.
-    pub piku_session_path: &'a str,
-    pub piku_run_record_path: &'a str,
+    pub subject_session_path: &'a str,
+    pub subject_run_record_path: &'a str,
     pub verified_findings: &'a [String],
     pub hypotheses: &'a [String],
     pub next_action: &'a str,
@@ -563,12 +563,12 @@ pub struct PlaygroundLedger {
 
 impl PlaygroundLedger {
     pub fn open() -> std::io::Result<Self> {
-        let path = std::env::var("PIKU_AGENTIC_LEDGER").map_or_else(
+        let path = std::env::var("SUBJECT_AGENTIC_LEDGER").map_or_else(
             |_| {
                 PathBuf::from(env!("CARGO_MANIFEST_DIR"))
                     .parent()
                     .and_then(|path| path.parent())
-                    .expect("piku crate has workspace root")
+                    .expect("crate has a workspace root")
                     .join("target/agentic-findings/playground.jsonl")
             },
             PathBuf::from,
@@ -695,35 +695,35 @@ impl PlaygroundLedger {
         self.append(record)
     }
 
-    /// Keep piku's own session file with the run that produced it.
+    /// Keep subject's own session file with the run that produced it.
     ///
-    /// piku writes into a shared sessions directory that later runs add to and
+    /// subject writes into a shared sessions directory that later runs add to and
     /// a user may prune, so a path recorded now can point at nothing later. A
     /// copy beside the ledger keeps the messages, tool calls, and usage
     /// readable for as long as the evidence is.
-    /// Keep piku's event trace with the run, alongside its session.
+    /// Keep subject's event trace with the run, alongside its session.
     ///
     /// The session says what was exchanged; the trace says when, and how long
     /// each provider stream took. Separating a slow provider from a hang needs
     /// the second.
-    pub fn copy_piku_trace(&self, source: &Path) -> std::io::Result<PathBuf> {
+    pub fn copy_subject_trace(&self, source: &Path) -> std::io::Result<PathBuf> {
         let directory = self
             .path
             .parent()
             .unwrap_or_else(|| std::path::Path::new("."))
-            .join("piku-traces");
+            .join("subject-traces");
         fs::create_dir_all(&directory)?;
         let destination = directory.join(format!("{}.jsonl", self.run_id));
         fs::copy(source, &destination)?;
         Ok(destination)
     }
 
-    pub fn copy_piku_session(&self, source: &Path) -> std::io::Result<PathBuf> {
+    pub fn copy_subject_session(&self, source: &Path) -> std::io::Result<PathBuf> {
         let directory = self
             .path
             .parent()
             .unwrap_or_else(|| std::path::Path::new("."))
-            .join("piku-sessions");
+            .join("subject-sessions");
         fs::create_dir_all(&directory)?;
         let destination = directory.join(format!("{}.json", self.run_id));
         fs::copy(source, &destination)?;
@@ -732,12 +732,12 @@ impl PlaygroundLedger {
 
     /// Freeze the JSONL record and its flat artifact directory as one bundle.
     /// Keeping the original file names preserves run-relative artifact paths.
-    pub fn copy_piku_run(&self, source: &Path) -> std::io::Result<PathBuf> {
+    pub fn copy_subject_run(&self, source: &Path) -> std::io::Result<PathBuf> {
         let directory = self
             .path
             .parent()
             .unwrap_or_else(|| std::path::Path::new("."))
-            .join("piku-runs")
+            .join("subject-runs")
             .join(&self.run_id);
         fs::create_dir_all(&directory)?;
         let file_name = source
@@ -772,18 +772,18 @@ impl PlaygroundLedger {
 
     /// Append the one canonical summary row for this run.
     ///
-    /// `PIKU_LIVE_LEDGER` joins an explicitly selected shared ledger. Otherwise
+    /// `SUBJECT_LIVE_LEDGER` joins an explicitly selected shared ledger. Otherwise
     /// playground runs use the standard local live-ledger directory.
     pub fn append_evaluation_summary(
         &self,
         record: &EvaluationSummaryRecord<'_>,
     ) -> std::io::Result<PathBuf> {
-        let path = std::env::var("PIKU_LIVE_LEDGER").map_or_else(
+        let path = std::env::var("SUBJECT_LIVE_LEDGER").map_or_else(
             |_| {
                 PathBuf::from(env!("CARGO_MANIFEST_DIR"))
                     .parent()
                     .and_then(|path| path.parent())
-                    .expect("piku crate has workspace root")
+                    .expect("crate has a workspace root")
                     .join("target/live-ledger/playground.jsonl")
             },
             PathBuf::from,
@@ -1318,7 +1318,7 @@ mod tests {
         fs::write(artifact_dir.join("00000001-tool-result.txt"), "evidence").unwrap();
         let ledger = PlaygroundLedger::open_at(directory.path().join("ledger.jsonl")).unwrap();
 
-        let copied = ledger.copy_piku_run(&source).unwrap();
+        let copied = ledger.copy_subject_run(&source).unwrap();
 
         assert_eq!(fs::read_to_string(&copied).unwrap(), "record\n");
         assert_eq!(
@@ -1400,8 +1400,10 @@ mod tests {
     /// interleave a record and a newline from different processes.
     #[test]
     fn concurrent_writers_leave_parseable_lines() {
-        let directory =
-            std::env::temp_dir().join(format!("piku-ledger-concurrent-{}", std::process::id()));
+        let directory = std::env::temp_dir().join(format!(
+            "surfacekit-ledger-concurrent-{}",
+            std::process::id()
+        ));
         std::fs::create_dir_all(&directory).unwrap();
         let path = directory.join("shared.jsonl");
 
@@ -1445,7 +1447,7 @@ mod tests {
     #[test]
     fn review_record_keeps_typed_claims_separate_from_prose() {
         let directory =
-            std::env::temp_dir().join(format!("piku-review-ledger-{}", std::process::id()));
+            std::env::temp_dir().join(format!("surfacekit-review-ledger-{}", std::process::id()));
         let path = directory.join("ledger.jsonl");
         std::fs::create_dir_all(&directory).unwrap();
         let ledger = PlaygroundLedger::open_at(path.clone()).unwrap();
@@ -1483,8 +1485,10 @@ mod tests {
 
     #[test]
     fn writes_jsonl_turn_config_and_observer_records() {
-        let directory =
-            std::env::temp_dir().join(format!("piku-playground-ledger-{}", std::process::id()));
+        let directory = std::env::temp_dir().join(format!(
+            "surfacekit-playground-ledger-{}",
+            std::process::id()
+        ));
         let path = directory.join("ledger.jsonl");
         std::fs::create_dir_all(&directory).unwrap();
         let ledger = PlaygroundLedger::open_at(path.clone()).unwrap();
@@ -1500,8 +1504,8 @@ mod tests {
                 turn: 1,
                 user_agent_provider: "ollama",
                 user_agent_model: "test",
-                piku_provider: "ollama",
-                piku_model: "test",
+                subject_provider: "ollama",
+                subject_model: "test",
                 action: "Observe",
                 viewport: "❯",
                 workspace_diff: "no changes",
@@ -1521,13 +1525,13 @@ mod tests {
                 user_agent_model: "test",
                 judge_provider: "openrouter",
                 judge_model: "test-judge",
-                piku_provider: "ollama",
-                piku_model: "test",
+                subject_provider: "ollama",
+                subject_model: "test",
                 model_selection_seed: Some("42"),
                 user_agent_client: "direct-https/reqwest",
                 judge_client: "direct-https/reqwest",
                 run_role: "control",
-                piku_revision: "abc1234",
+                subject_revision: "abc1234",
                 review_max_tokens: 2048,
                 turn_limit: 6,
                 terminal_rows: 40,
@@ -1538,7 +1542,7 @@ mod tests {
             })
             .unwrap();
         let judge_observations = vec!["the primary review is grounded".to_string()];
-        let piku_observations = vec!["the prompt stayed visible".to_string()];
+        let subject_observations = vec!["the prompt stayed visible".to_string()];
         let claim_assessments = vec![ObserverClaimRecord {
             target_claim_id: "user-bug-1-1".to_string(),
             disposition: "SUPPORTED".to_string(),
@@ -1553,7 +1557,7 @@ mod tests {
                 timestamp_secs: 1,
                 persona: "tester",
                 judge_observations: &judge_observations,
-                piku_observations: &piku_observations,
+                subject_observations: &subject_observations,
                 verdict: "keep",
                 claim_assessments: &claim_assessments,
                 invalid_reasons: &[],
@@ -1587,8 +1591,8 @@ mod tests {
                 hypotheses: &hypotheses,
                 next_action: "reproduce_verified_findings_then_fix",
                 development_context_path: "development-context/example.json",
-                piku_session_path: "piku-sessions/example.json",
-                piku_run_record_path: "piku-runs/example/session.jsonl",
+                subject_session_path: "subject-sessions/example.json",
+                subject_run_record_path: "subject-runs/example/session.jsonl",
             })
             .unwrap();
         let context_path = ledger
@@ -1599,11 +1603,11 @@ mod tests {
                 prior_verified_history: "[MAJOR] previous deterministic failure",
                 scenario_goal: "return 1-based line numbers",
                 scenario_results: &["fail: cargo test --quiet".to_string()],
-                piku_session_path: "piku-sessions/example.json",
-                piku_run_record_path: "piku-runs/example/session.jsonl",
+                subject_session_path: "subject-sessions/example.json",
+                subject_run_record_path: "subject-runs/example/session.jsonl",
                 verified_findings: &verified,
                 hypotheses: &hypotheses,
-                next_action: "fix_piku_for_failed_scenario_acceptance",
+                next_action: "fix_subject_for_failed_scenario_acceptance",
             })
             .unwrap();
         let content = std::fs::read_to_string(&path).unwrap();
@@ -1617,7 +1621,7 @@ mod tests {
         assert_eq!(config["judge_model"], "test-judge");
         assert_eq!(config["model_selection_seed"], "42");
         assert_eq!(config["run_role"], "control");
-        assert_eq!(config["piku_revision"], "abc1234");
+        assert_eq!(config["subject_revision"], "abc1234");
         let observer: serde_json::Value = serde_json::from_str(lines[2]).unwrap();
         assert_eq!(observer["kind"], "recursive_observer");
         assert_eq!(observer["verdict"], "keep");
@@ -1657,7 +1661,7 @@ mod tests {
         );
         assert_eq!(
             context_packet["next_action"],
-            "fix_piku_for_failed_scenario_acceptance"
+            "fix_subject_for_failed_scenario_acceptance"
         );
         std::fs::remove_dir_all(directory).unwrap();
     }
