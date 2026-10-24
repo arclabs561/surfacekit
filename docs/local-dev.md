@@ -71,6 +71,37 @@ The first adoption cohort showed the template must not assume one shape:
 Friction discovered in a package is recorded here and folded into the template
 once two packages need the same change.
 
+## Pilot results
+
+Tier 0 was run on four clean packages on 2026-10-24:
+
+| Package | fmt | clippy (`--all-features`) | test | doc |
+| --- | --- | --- | --- | --- |
+| ablate | pass | pass | pass | pass |
+| pkgrank | pass | pass | pass | pass |
+| deformat | pass | pass | pass | pass |
+| embedd | pass | fail | pass | pass |
+
+`embedd` pulls a CUDA backend (`cudarc`) through `--all-features`; the machine
+has no CUDA toolkit, so the build script fails. `--all-features` is a
+host-dependent promise, not a default. Use it only when every feature builds on
+the runner; otherwise enumerate features and keep the all-features job on a
+runner that has the required toolchain.
+
+Further refinements from the cohort:
+
+- Skip the package stage when a crate sets `publish = false` or releases through
+  `cargo-dist`; the command is a false failure there.
+- Feature-gated crates keep their own matrix and MSRV jobs. A generic justfile
+  must not replace a richer CI with a weaker one.
+- A simple crate can adopt the workflow as a justfile without changing its CI;
+  the two stay aligned because both run the same commands.
+
+Adoption so far: `surfacekit`, `ablate`, and `pkgrank` run `just check`.
+`deformat` and `embedd` keep their existing CI, which already exceeds the
+template; their patterns are the source of the refinements above.
+
+
 ## Adoption
 
 Start with one reference package, then cohorts of three or four. Run the tier-0
