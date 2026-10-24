@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.6.0 - unreleased
+## 0.6.0 - 2026-10-24
 
 - `Critic` trait and `CritiqueContext`: a live critic reads the same screen the
   actor acted on and returns an optional verdict.
@@ -14,14 +14,14 @@
 - Open question resolved in the design record: the actor loop owns the live
   critique latency budget, not the judge seam.
 
-## 0.5.1 - unreleased
+## 0.5.1 - 2026-10-24
 
 - `Case::ready_when` records the stable screen marker that means a session is
   ready. `replay_case` waits for it before sending the recorded actions; without
   it, replay against a fresh TUI sends input before the prompt exists.
 
 
-## 0.5.0 - unreleased
+## 0.5.0 - 2026-10-24
 
 - `Actor`, `ScriptedActor`, and `ExpectActor`, plus `run_actor` with drain,
   pacing, timeout, and exit reporting.
@@ -34,7 +34,7 @@
   and a mutated check that diverges.
 
 
-## 0.4.0 - unreleased
+## 0.4.0 - 2026-10-24
 
 - `TerminalProfile` capability presets (`vt100`, `xterm`, `ghostty`) and the
   `TerminalEmulator` seam with a `Vt100Emulator` implementation.

@@ -33,7 +33,7 @@ crates.
 
 ## Status
 
-`0.1.0` through `0.5.1` are published; `0.6.0` is staged. `cargo test` runs 64 tests.
+`0.1.0` through `0.6.0` are published. `cargo test` runs 64 tests.
 Two live OpenRouter tests are opt-in. CI runs format, clippy, nextest, a
 contract-only build, docs, and a publish dry-run.
 
