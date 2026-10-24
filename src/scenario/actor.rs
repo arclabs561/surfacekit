@@ -8,7 +8,8 @@ use std::time::{Duration, Instant};
 
 use crate::contract::TerminalProfile;
 use crate::scenario::action::{encode, ActionPlan};
-use crate::scenario::timeline::{Event, Timeline};
+use crate::scenario::critique::{Critic, CritiqueBudget, CritiqueContext};
+use crate::scenario::timeline::{Event, Timeline, VerificationProvenance};
 use crate::term::{SessionIo, TerminalEmulator};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -141,6 +142,33 @@ pub fn run_actor(
     profile: &TerminalProfile,
     config: &LoopConfig,
 ) -> LoopReport {
+    run_actor_inner(actor, io, emulator, profile, config, None)
+}
+
+/// Run the actor loop and let a live critic answer after each action. The
+/// loop owns the latency budget: it measures the call and records an
+/// over-budget critique instead of dropping it. It cannot preempt a
+/// synchronous critic.
+pub fn run_actor_with_critic(
+    actor: &mut dyn Actor,
+    io: &mut dyn SessionIo,
+    emulator: &mut dyn TerminalEmulator,
+    profile: &TerminalProfile,
+    config: &LoopConfig,
+    critic: &mut dyn Critic,
+    budget: CritiqueBudget,
+) -> LoopReport {
+    run_actor_inner(actor, io, emulator, profile, config, Some((critic, budget)))
+}
+
+fn run_actor_inner(
+    actor: &mut dyn Actor,
+    io: &mut dyn SessionIo,
+    emulator: &mut dyn TerminalEmulator,
+    profile: &TerminalProfile,
+    config: &LoopConfig,
+    mut critic: Option<(&mut dyn Critic, CritiqueBudget)>,
+) -> LoopReport {
     let start = Instant::now();
     let mut timeline = Timeline::new();
     let mut steps = 0;
@@ -190,6 +218,24 @@ pub fn run_actor(
                     }
                     if let Some(delay) = encoded.delay.filter(|delay| !delay.is_zero()) {
                         std::thread::sleep(delay.min(config.poll));
+                    }
+                }
+                if let Some((critic, budget)) = critic.as_mut() {
+                    let started = Instant::now();
+                    let verdict = critic.critique(CritiqueContext {
+                        screen: &screen,
+                        action: Some(&plan),
+                        elapsed_ms: elapsed(start),
+                    });
+                    if let Some(verdict) = verdict {
+                        let latency_ms = started.elapsed().as_millis() as u64;
+                        timeline.push(Event::Critique {
+                            at_ms: elapsed(start),
+                            verdict,
+                            provenance: VerificationProvenance::Judge,
+                            latency_ms: Some(latency_ms),
+                            within_budget: Some(latency_ms <= budget.max_latency_ms),
+                        });
                     }
                 }
                 timeline.push(Event::Action {
@@ -297,6 +343,121 @@ mod tests {
             .events()
             .iter()
             .any(|event| matches!(event, Event::Exit { clean: true, .. })));
+    }
+
+    struct FixedCritic {
+        calls: usize,
+        verdict: String,
+    }
+
+    impl Critic for FixedCritic {
+        fn critique(&mut self, context: CritiqueContext<'_>) -> Option<String> {
+            self.calls += 1;
+            assert!(context.action.is_some(), "critic should see the plan");
+            Some(self.verdict.clone())
+        }
+    }
+
+    struct SlowCritic {
+        delay: Duration,
+    }
+
+    impl Critic for SlowCritic {
+        fn critique(&mut self, _context: CritiqueContext<'_>) -> Option<String> {
+            std::thread::sleep(self.delay);
+            Some("slow".to_string())
+        }
+    }
+
+    #[test]
+    fn critic_records_a_bounded_critique() {
+        let mut io = MockIo {
+            scripted: VecDeque::from([b"READY\r\n".to_vec()]),
+            written: Vec::new(),
+            dead: false,
+        };
+        let mut emulator = Vt100Emulator::new(TerminalProfile::vt100(10, 40));
+        let mut actor = ScriptedActor::new(vec![ActionPlan::text("hi")]);
+        let config = LoopConfig {
+            timeout: Duration::from_secs(1),
+            poll: Duration::from_millis(1),
+            max_steps: 4,
+        };
+        let mut critic = FixedCritic {
+            calls: 0,
+            verdict: "looks fine".to_string(),
+        };
+        let report = run_actor_with_critic(
+            &mut actor,
+            &mut io,
+            &mut emulator,
+            &TerminalProfile::vt100(10, 40),
+            &config,
+            &mut critic,
+            CritiqueBudget {
+                max_latency_ms: 1_000,
+            },
+        );
+        assert_eq!(critic.calls, 1);
+        let critique = report
+            .timeline
+            .events()
+            .iter()
+            .find_map(|event| match event {
+                Event::Critique {
+                    verdict,
+                    latency_ms,
+                    within_budget,
+                    ..
+                } => Some((verdict.clone(), *latency_ms, *within_budget)),
+                _ => None,
+            })
+            .expect("critique recorded");
+        assert_eq!(critique.0, "looks fine");
+        assert!(critique.1.is_some(), "latency measured");
+        assert_eq!(critique.2, Some(true));
+    }
+
+    #[test]
+    fn over_budget_critique_is_recorded_not_dropped() {
+        let mut io = MockIo {
+            scripted: VecDeque::from([b"READY\r\n".to_vec()]),
+            written: Vec::new(),
+            dead: false,
+        };
+        let mut emulator = Vt100Emulator::new(TerminalProfile::vt100(10, 40));
+        let mut actor = ScriptedActor::new(vec![ActionPlan::text("hi")]);
+        let config = LoopConfig {
+            timeout: Duration::from_secs(1),
+            poll: Duration::from_millis(1),
+            max_steps: 4,
+        };
+        let mut critic = SlowCritic {
+            delay: Duration::from_millis(20),
+        };
+        let report = run_actor_with_critic(
+            &mut actor,
+            &mut io,
+            &mut emulator,
+            &TerminalProfile::vt100(10, 40),
+            &config,
+            &mut critic,
+            CritiqueBudget { max_latency_ms: 1 },
+        );
+        let mut found = false;
+        for event in report.timeline.events() {
+            if let Event::Critique {
+                verdict,
+                within_budget,
+                ..
+            } = event
+            {
+                assert_eq!(verdict, "slow");
+                assert_eq!(*within_budget, Some(false));
+                found = true;
+            }
+        }
+        assert!(found, "over-budget critique retained");
     }
 
     #[test]

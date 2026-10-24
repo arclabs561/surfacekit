@@ -55,11 +55,17 @@ pub enum Event {
         passed: bool,
         provenance: VerificationProvenance,
     },
-    /// Judge observation.
+    /// Judge observation. Latency fields are absent on records captured
+    /// before the loop tracked a critique budget; absence means "not
+    /// measured", never "zero".
     Critique {
         at_ms: u64,
         verdict: String,
         provenance: VerificationProvenance,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        latency_ms: Option<u64>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        within_budget: Option<bool>,
     },
     Exit {
         at_ms: u64,

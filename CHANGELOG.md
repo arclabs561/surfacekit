@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.6.0 - unreleased
+
+- `Critic` trait and `CritiqueContext`: a live critic reads the same screen the
+  actor acted on and returns an optional verdict.
+- `CritiqueBudget` and `run_actor_with_critic`: the actor loop owns the latency
+  budget. It measures each critic call and records an over-budget critique
+  rather than dropping it. It cannot preempt a synchronous critic; preemption
+  is a separate gate.
+- `Event::Critique` now carries optional `latency_ms` and `within_budget`.
+  Records captured before 0.6.0 deserialize with both absent, which means "not
+  measured", never "zero".
+- Open question resolved in the design record: the actor loop owns the live
+  critique latency budget, not the judge seam.
+
 ## 0.5.1 - unreleased
 
 - `Case::ready_when` records the stable screen marker that means a session is

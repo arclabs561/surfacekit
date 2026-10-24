@@ -9,13 +9,13 @@ The code is extracted from the terminal harness in [piku](https://github.com/arc
 Default build (contract, PTY observation, scenarios, judge):
 
 ```toml
-surfacekit = "0.5"
+surfacekit = "0.6"
 ```
 
 Contract only, without PTY, VT100, or judge dependencies:
 
 ```toml
-surfacekit = { version = "0.5", default-features = false, features = ["contract"] }
+surfacekit = { version = "0.6", default-features = false, features = ["contract"] }
 ```
 
 ## Layers
@@ -24,7 +24,7 @@ surfacekit = { version = "0.5", default-features = false, features = ["contract"
 | --- | --- | --- |
 | `contract` | always | `Surface`, `Observation`, `EvidenceKind`, `Claim`, `Evidence`, `SurfacePacket`, JSON schema. |
 | `term` | `term` | Real PTY handles, `SessionIo`, capability profiles, emulator seam, VT100 observers, workspace diff, recording. |
-| `scenario` | `scenario` | Actors, action resolutions, encode, timeline, replay, regression cases, trials, evidence records. |
+| `scenario` | `scenario` | Actors, action resolutions, encode, timeline, replay, regression cases, trials, evidence records, bounded live critique. |
 | `judge` | `judge` | Deterministic checks, a provider-neutral judge seam, and order-swapped pairwise judging. |
 
 `scenario` requires `term`; `judge` requires `scenario`. The modules are not
@@ -33,7 +33,7 @@ crates.
 
 ## Status
 
-`0.1.0` through `0.4.0` are published; `0.5.0` is staged. `cargo test` runs 62 tests.
+`0.1.0` through `0.5.1` are published; `0.6.0` is staged. `cargo test` runs 64 tests.
 Two live OpenRouter tests are opt-in. CI runs format, clippy, nextest, a
 contract-only build, docs, and a publish dry-run.
 

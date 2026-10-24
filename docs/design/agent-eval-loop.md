@@ -84,9 +84,14 @@ same loop without a product dependency. The isolated piku PTY suite passes
 - A second consumer needs a different event shape: version the timeline rather
   than adding optional fields silently.
 
+## Resolved
+
+- The actor loop owns the live critique latency budget. The loop measures each
+  critic call and records an over-budget critique; the judge seam does not
+  enforce time. Preemption is a separate gate.
+
 ## Open questions
 
-- Who owns live critique latency budgets: the actor loop or the judge seam?
 - Should annotations be immutable events with supersession, or mutable labels?
 - Where do model/prompt hashes come from when the harness does not control the
   provider?
