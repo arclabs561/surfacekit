@@ -27,7 +27,7 @@ This crate observes and proves. It does not own product TUIs, provider transport
 
 ## Development
 
-`just check` runs format, clippy, nextest (or `cargo test`), docs, and a publish dry-run. CI runs the same stages; see `docs/local-dev.md`.
+`just check` runs format, clippy, nextest (or `cargo test`), docs, and a publish dry-run. CI runs the same stages; see `docs/local-dev.md`. The design constraints from the literature are in `docs/grounding.md`.
 
 ## Known couplings
 

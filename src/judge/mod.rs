@@ -7,9 +7,11 @@
 pub mod checks;
 pub mod memory;
 pub mod model;
+pub mod pairwise;
 pub mod recursive_observer;
 
 pub use checks::deterministic_checks;
 pub use memory::{ConversationMemory, TurnSummary};
 pub use model::{JudgeModel, JudgeOutcome, Persona};
+pub use pairwise::{counterbalance, Agreement, Counterbalanced, PairwiseJudge, Side, Verdict};
 pub use recursive_observer::{observe, RecursiveReview};

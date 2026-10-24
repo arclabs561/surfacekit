@@ -9,6 +9,10 @@ use std::collections::BTreeSet;
 
 pub const OUTPUT_RECOVERY_ROOM: &str = "output-recovery-room";
 
+/// Current packet revision. v2 adds environment identity and executable
+/// checks, because a rendered screen alone does not prove a terminal task.
+pub const CURRENT_SCHEMA_VERSION: u8 = 2;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Surface {
@@ -38,6 +42,10 @@ pub enum EvidenceKind {
     BrowserEvents,
     Screenshots,
     DomPredicates,
+    /// The environment the subject ran in: image/OS/toolchain identity.
+    EnvironmentIdentity,
+    /// A deterministic test or predicate the task itself defines.
+    ExecutableCheck,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
@@ -90,18 +98,24 @@ impl Surface {
                 EvidenceKind::ExitStatus,
                 EvidenceKind::StdoutOrArtifact,
                 EvidenceKind::RunRecord,
+                EvidenceKind::EnvironmentIdentity,
+                EvidenceKind::ExecutableCheck,
             ],
             Self::Tui => [
                 EvidenceKind::PtyTranscript,
                 EvidenceKind::KeyEvents,
                 EvidenceKind::ResizeEvents,
                 EvidenceKind::RunRecord,
+                EvidenceKind::EnvironmentIdentity,
+                EvidenceKind::ExecutableCheck,
             ],
             Self::Web => [
                 EvidenceKind::BrowserEvents,
                 EvidenceKind::Screenshots,
                 EvidenceKind::DomPredicates,
                 EvidenceKind::RunRecord,
+                EvidenceKind::EnvironmentIdentity,
+                EvidenceKind::ExecutableCheck,
             ],
         }
         .into_iter()
@@ -113,7 +127,7 @@ impl SurfacePacket {
     #[must_use]
     pub fn output_recovery_room(surface: Surface) -> Self {
         Self {
-            schema_version: 1,
+            schema_version: CURRENT_SCHEMA_VERSION,
             scenario_id: OUTPUT_RECOVERY_ROOM,
             surface,
             observation: surface.observation(),
@@ -123,7 +137,7 @@ impl SurfacePacket {
     }
 
     pub fn validate(&self) -> Result<(), &'static str> {
-        if self.schema_version != 1 {
+        if self.schema_version != CURRENT_SCHEMA_VERSION {
             return Err("unknown surface packet schema version");
         }
         if self.scenario_id != OUTPUT_RECOVERY_ROOM {
@@ -169,5 +183,19 @@ mod tests {
             packet.validate(),
             Err("surface packet omits required evidence")
         );
+    }
+
+    #[test]
+    fn every_surface_requires_environment_and_executable_evidence() {
+        for surface in [Surface::Cli, Surface::Tui, Surface::Web] {
+            let packet = SurfacePacket::output_recovery_room(surface);
+            assert_eq!(packet.schema_version, CURRENT_SCHEMA_VERSION);
+            assert!(packet
+                .evidence_kinds
+                .contains(&EvidenceKind::EnvironmentIdentity));
+            assert!(packet
+                .evidence_kinds
+                .contains(&EvidenceKind::ExecutableCheck));
+        }
     }
 }

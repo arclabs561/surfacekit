@@ -16,5 +16,6 @@ pub mod scenario;
 pub mod term;
 
 pub use contract::{
-    Claim, EvidenceKind, Observation, Surface, SurfacePacket, OUTPUT_RECOVERY_ROOM,
+    Claim, EvidenceKind, Observation, Surface, SurfacePacket, CURRENT_SCHEMA_VERSION,
+    OUTPUT_RECOVERY_ROOM,
 };
