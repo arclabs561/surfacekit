@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.1 - unreleased
+
+- `Case::ready_when` records the stable screen marker that means a session is
+  ready. `replay_case` waits for it before sending the recorded actions; without
+  it, replay against a fresh TUI sends input before the prompt exists.
+
+
 ## 0.5.0 - unreleased
 
 - `Actor`, `ScriptedActor`, and `ExpectActor`, plus `run_actor` with drain,

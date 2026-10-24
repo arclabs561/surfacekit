@@ -46,6 +46,11 @@ pub struct Case {
     /// Live services, mutable sites, or live models that make a byte-for-byte
     /// replay a claim rather than a fact.
     pub live_dependencies: Vec<String>,
+    /// Stable screen marker that means the session is ready for `act`.
+    /// Promotion loses this if the caller does not supply it, which is why
+    /// replay can fail before any action is sent.
+    #[serde(default)]
+    pub ready_when: Option<String>,
     #[serde(default)]
     pub provenance: Provenance,
     #[serde(default)]
@@ -62,6 +67,7 @@ impl Case {
             checks: Vec::new(),
             teardown: Vec::new(),
             live_dependencies: Vec::new(),
+            ready_when: None,
             provenance: Provenance::default(),
             reward: None,
         }
@@ -104,6 +110,7 @@ impl Case {
             checks,
             teardown: Vec::new(),
             live_dependencies: Vec::new(),
+            ready_when: None,
             provenance: Provenance::default(),
             reward: None,
         }

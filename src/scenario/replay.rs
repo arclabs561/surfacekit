@@ -116,10 +116,14 @@ pub fn replay_case(
     profile: &TerminalProfile,
     config: &LoopConfig,
 ) -> ReplayReport {
-    let mut steps = vec![ExpectStep {
+    let mut steps = Vec::new();
+    if let Some(ready) = &case.ready_when {
+        steps.push(ExpectStep::wait_for(ready.clone()));
+    }
+    steps.push(ExpectStep {
         wait_for: None,
         action: Some(case.action_plan()),
-    }];
+    });
     for check in &case.checks {
         steps.push(ExpectStep::wait_for(check.contains.clone()));
     }
