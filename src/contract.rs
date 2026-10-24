@@ -227,6 +227,87 @@ impl SurfacePacket {
     }
 }
 
+/// How many colors the renderer can distinguish.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ColorDepth {
+    Mono,
+    Ansi16,
+    Ansi256,
+    TrueColor,
+}
+
+/// Declared capabilities of the terminal a session runs in.
+///
+/// These are declarations, not probes. A consumer that needs proof must attach
+/// a capability query to the evidence.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TerminalProfile {
+    pub rows: u16,
+    pub cols: u16,
+    pub color: ColorDepth,
+    pub alternate_screen: bool,
+    pub bracketed_paste: bool,
+    pub mouse: bool,
+    /// SGR encoding (1006). It is an encoding, not an enabler: mouse
+    /// reporting still requires one of 1000/1002/1003.
+    pub sgr_mouse: bool,
+    pub focus_events: bool,
+    pub hyperlinks: bool,
+    pub kitty_keyboard: bool,
+    pub osc_133: bool,
+    pub osc_7: bool,
+    pub scrollback_lines: u32,
+}
+
+impl TerminalProfile {
+    #[must_use]
+    pub fn vt100(rows: u16, cols: u16) -> Self {
+        Self {
+            rows,
+            cols,
+            color: ColorDepth::Ansi16,
+            alternate_screen: true,
+            bracketed_paste: false,
+            mouse: false,
+            sgr_mouse: false,
+            focus_events: false,
+            hyperlinks: false,
+            kitty_keyboard: false,
+            osc_133: false,
+            osc_7: false,
+            scrollback_lines: 500,
+        }
+    }
+
+    #[must_use]
+    pub fn xterm(rows: u16, cols: u16) -> Self {
+        Self {
+            rows,
+            cols,
+            color: ColorDepth::TrueColor,
+            alternate_screen: true,
+            bracketed_paste: true,
+            mouse: true,
+            sgr_mouse: true,
+            focus_events: true,
+            hyperlinks: true,
+            kitty_keyboard: false,
+            osc_133: true,
+            osc_7: true,
+            scrollback_lines: 10_000,
+        }
+    }
+
+    #[must_use]
+    pub fn ghostty(rows: u16, cols: u16) -> Self {
+        Self {
+            kitty_keyboard: true,
+            ..Self::xterm(rows, cols)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

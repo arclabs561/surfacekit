@@ -1,6 +1,20 @@
 # Changelog
 
-## 0.3.0 - unreleased
+## 0.4.0 - unreleased
+
+- `TerminalProfile` capability presets (`vt100`, `xterm`, `ghostty`) and the
+  `TerminalEmulator` seam with a `Vt100Emulator` implementation.
+- Action resolution ladder: `Plan`, `Command`, `Line`, `Text`, `Paste`,
+  `KeyChord`, `PhysicalKey`, `Wait`, `Raw`, plus profile-aware `encode`.
+- Typed `Timeline` events with monotonic append order; replay with explicit
+  `MatchMode::{Skip, Contains, Exact}` and divergence reporting.
+- Regression `Case` quadruple (`init`/`act`/`check`/`teardown`) with
+  `Provenance`, `Reward`, and named live dependencies.
+- `Trial`/`TrialSet` with pass rate, unbiased pass@k, and mean cost.
+- Design records for the terminal core and the agent-driven evaluation loop.
+
+
+## 0.3.0 - 2026-10-24
 
 - `SurfacePacket::new` builds packets for scenarios other than the preset;
   `validate_shape` checks version, observation authority, required evidence,

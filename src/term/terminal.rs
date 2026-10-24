@@ -15,6 +15,10 @@ impl TerminalObserver {
         self.parser.process(bytes);
     }
 
+    pub fn resize(&mut self, rows: u16, cols: u16) {
+        self.parser.screen_mut().set_size(rows, cols);
+    }
+
     pub fn snapshot(&self) -> ScreenSnapshot {
         let screen = self.parser.screen();
         let (term_rows, term_cols) = screen.size();

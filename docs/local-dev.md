@@ -85,7 +85,9 @@ Tier 0 was run on four clean packages of different shapes on 2026-10-24:
 That failure is the rule: `--all-features` is a host-dependent promise, not a
 default. Use it only when every feature builds on the runner; otherwise
 enumerate features and keep the all-features job on a runner that has the
-required toolchain.
+required toolchain. Two packages in the survey hit this: one needs a CUDA
+toolkit for its own backend, another links CUDA through a dependency's build
+script.
 
 Further refinements from the cohort:
 
