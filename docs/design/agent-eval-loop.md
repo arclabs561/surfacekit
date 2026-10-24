@@ -1,6 +1,7 @@
 # Design: agent-driven terminal evaluation loop
 
-Status: draft. Actor loop and session replay implemented; live critique and optimizer open.
+Status: draft. Actor loop, session replay, and bounded live critique implemented;
+annotation promotion policy and optimizer open.
 
 ## Purpose
 
@@ -21,7 +22,7 @@ Each stage has a type, so a consumer can enter at any point:
 | Session | `TerminalProfile`, `Vt100Emulator`, `CommandPty`, `SessionIo` | implemented |
 | Action | `ActionPlan`, `Step`, `Resolution`, `encode` | implemented |
 | Timeline | `Timeline`, `Event` | implemented |
-| Critique | `Event::Check`, `Event::Critique`, `VerificationProvenance` | primitives only |
+| Critique | `Event::Check`, `Event::Critique`, `VerificationProvenance`, `Critic` | implemented; bounded latency |
 | Annotation | `Event::Marker`, `CheckSpec`, `Case` | implemented |
 | Replay | `replay`, `replay_case`, `MatchMode`, `Divergence` | implemented |
 | Trials | `Trial`, `TrialSet`, `pass_at_k` | implemented |
@@ -34,7 +35,9 @@ sends a message, and waits for the scripted response. The timeline is promoted
 to a `Case` with a `ready_when` marker; replaying it against a fresh piku process
 passes, and a mutated check produces a divergence. A shell fixture covers the
 same loop without a product dependency. The isolated piku PTY suite passes
-25/25 with this test included.
+25/25 with this test included. The critique gate is proven on the same fixture:
+`run_actor_with_critic` measures each critic call against a loop-owned budget and
+records an over-budget critique without failing the run.
 
 ## What the research changed
 
