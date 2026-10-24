@@ -25,6 +25,10 @@ Local scaffold. Not published. `cargo test` runs 30 tests: 2 contract, 4 term, 2
 
 This crate observes and proves. It does not own product TUIs, provider transports, durable notebooks, comparison math, or coordination. Those stay with the projects that already implement them.
 
+## Development
+
+`just check` runs format, clippy, nextest (or `cargo test`), docs, and a publish dry-run. CI runs the same stages; see `docs/local-dev.md`.
+
 ## Known couplings
 
 - Ledger fields retain `piku_*` names. Renaming them is a ledger schema revision, not a cosmetic edit.

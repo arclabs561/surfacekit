@@ -1,0 +1,29 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: format
+        run: cargo fmt --all -- --check
+      - name: lint
+        run: cargo clippy --all-targets --all-features -- -D warnings
+      - name: test
+        run: cargo test --locked
+      - name: docs
+        run: cargo doc --no-deps --locked
+      - name: package
+        run: cargo publish --dry-run --locked
