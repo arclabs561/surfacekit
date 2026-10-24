@@ -14,4 +14,4 @@ pub use checks::deterministic_checks;
 pub use memory::{ConversationMemory, TurnSummary};
 pub use model::{JudgeModel, JudgeOutcome, Persona};
 pub use pairwise::{counterbalance, Agreement, Counterbalanced, PairwiseJudge, Side, Verdict};
-pub use recursive_observer::{observe, RecursiveReview};
+pub use recursive_observer::{observe, observe_with_keys, ObserverKeys, RecursiveReview};

@@ -21,12 +21,59 @@ pub struct RecursiveReview {
 
 const MAX_TURNS: usize = 12;
 
+/// Response field names the observer reads. The caller-owned prompt must use
+/// the same names, so a product can keep its own schema without forking the
+/// observer.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ObserverKeys {
+    pub judge: String,
+    pub subject: String,
+}
+
+impl Default for ObserverKeys {
+    fn default() -> Self {
+        Self {
+            judge: "judge_observations".to_owned(),
+            subject: "subject_observations".to_owned(),
+        }
+    }
+}
+
+impl ObserverKeys {
+    #[must_use]
+    pub fn new(judge: impl Into<String>, subject: impl Into<String>) -> Self {
+        Self {
+            judge: judge.into(),
+            subject: subject.into(),
+        }
+    }
+}
+
+#[must_use]
 pub fn observe(
     model: &dyn JudgeModel,
     system: &str,
     persona: &Persona,
     entries: &[CritiqueEntry],
     primary_claims: &[ReviewClaimRecord],
+) -> RecursiveReview {
+    observe_with_keys(
+        model,
+        system,
+        persona,
+        entries,
+        primary_claims,
+        &ObserverKeys::default(),
+    )
+}
+
+pub fn observe_with_keys(
+    model: &dyn JudgeModel,
+    system: &str,
+    persona: &Persona,
+    entries: &[CritiqueEntry],
+    primary_claims: &[ReviewClaimRecord],
+    keys: &ObserverKeys,
 ) -> RecursiveReview {
     let (turns, unsupported_claims) = projected_turns(entries.len(), primary_claims);
     let supplied_turns = turns
@@ -95,17 +142,7 @@ pub fn observe(
             status: outcome.status(),
         };
     };
-    let strings = |field: &str| {
-        parsed[field]
-            .as_array()
-            .map(|items| {
-                items
-                    .iter()
-                    .filter_map(|item| item.as_str().map(str::to_owned))
-                    .collect()
-            })
-            .unwrap_or_default()
-    };
+    let strings = |field: &str| string_list(parsed, field);
     let primary_ids = primary_claims
         .iter()
         .map(|claim| claim.id.clone())
@@ -125,8 +162,8 @@ pub fn observe(
         "invalid"
     };
     RecursiveReview {
-        judge_observations: strings("judge_observations"),
-        subject_observations: strings("subject_observations"),
+        judge_observations: strings(keys.judge.as_str()),
+        subject_observations: strings(keys.subject.as_str()),
         verdict: parsed["verdict"]
             .as_str()
             .unwrap_or("recursive observer returned no verdict")
@@ -135,6 +172,18 @@ pub fn observe(
         invalid_reasons,
         status,
     }
+}
+
+fn string_list(value: &serde_json::Value, key: &str) -> Vec<String> {
+    value[key]
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| item.as_str().map(str::to_owned))
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// Prefer the source turns cited by primary claims, then use any remaining
@@ -280,6 +329,27 @@ fn cites_only_supplied_turns(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn default_keys_match_the_documented_schema() {
+        let keys = ObserverKeys::default();
+        assert_eq!(keys.judge, "judge_observations");
+        assert_eq!(keys.subject, "subject_observations");
+    }
+
+    #[test]
+    fn custom_keys_select_the_requested_fields() {
+        let value = serde_json::json!({
+            "review": ["primary"],
+            "subject_observations": ["observed"]
+        });
+        assert_eq!(string_list(&value, "review"), vec!["primary".to_string()]);
+        assert_eq!(
+            string_list(&value, "subject_observations"),
+            vec!["observed".to_string()]
+        );
+        assert!(string_list(&value, "missing").is_empty());
+    }
 
     #[test]
     fn malformed_assessment_invalidates_the_whole_observer_record() {

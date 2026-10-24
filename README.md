@@ -9,13 +9,13 @@ The code is extracted from the terminal harness in [piku](https://github.com/arc
 Default build (contract, PTY observation, scenarios, judge):
 
 ```toml
-surfacekit = "0.2"
+surfacekit = "0.3"
 ```
 
 Contract only, without PTY, VT100, or judge dependencies:
 
 ```toml
-surfacekit = { version = "0.2", default-features = false, features = ["contract"] }
+surfacekit = { version = "0.3", default-features = false, features = ["contract"] }
 ```
 
 ## Layers
@@ -33,7 +33,7 @@ crates.
 
 ## Status
 
-`0.1.0` is published; `0.2.0` is staged locally. `cargo test` runs 38 tests.
+`0.1.0` and `0.2.0` are published; `0.3.0` is staged. `cargo test` runs 42 tests.
 Two live OpenRouter tests are opt-in. CI runs format, clippy, nextest, a
 contract-only build, docs, and a publish dry-run.
 
@@ -45,10 +45,10 @@ with the projects that already implement them.
 
 ## Known couplings
 
-- The named scenario preset is `output-recovery-room`; there is no generic
-  packet builder yet.
-- Judge response keys (`subject_observations`) are fixed even though prompts are
-  caller-owned.
+- The named scenario preset is `output-recovery-room`; `SurfacePacket::new`
+  builds other scenarios but does not validate scenario-specific claim rules.
+- Judge response keys default to `judge_observations` / `subject_observations`;
+  `observe_with_keys` overrides them, and the prompt must match.
 - `eval/` keeps the historical schemas used by tests; `schema/` is the
   published copy, with v1 archived under `schema/v1/`.
 

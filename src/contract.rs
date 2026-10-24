@@ -148,12 +148,32 @@ impl SurfacePacket {
         }
     }
 
-    pub fn validate(&self) -> Result<(), &'static str> {
+    /// Build a packet for any scenario. The caller supplies the claims and
+    /// evidence kinds; [`SurfacePacket::validate_shape`] checks the surface
+    /// contract without assuming the preset scenario.
+    #[must_use]
+    pub fn new(
+        scenario_id: impl Into<String>,
+        surface: Surface,
+        claims: impl IntoIterator<Item = Claim>,
+        evidence_kinds: impl IntoIterator<Item = EvidenceKind>,
+    ) -> Self {
+        Self {
+            schema_version: CURRENT_SCHEMA_VERSION,
+            scenario_id: scenario_id.into(),
+            surface,
+            observation: surface.observation(),
+            evidence_kinds: evidence_kinds.into_iter().collect(),
+            claims: claims.into_iter().collect(),
+            evidence: Vec::new(),
+        }
+    }
+
+    /// Version, observation authority, required evidence, and at least one
+    /// claim. Scenario-specific rules belong to [`SurfacePacket::validate`].
+    pub fn validate_shape(&self) -> Result<(), &'static str> {
         if self.schema_version != CURRENT_SCHEMA_VERSION {
             return Err("unknown surface packet schema version");
-        }
-        if self.scenario_id != OUTPUT_RECOVERY_ROOM {
-            return Err("unknown shared evaluation scenario");
         }
         if self.observation != self.surface.observation() {
             return Err("surface has the wrong observation authority");
@@ -163,6 +183,18 @@ impl SurfacePacket {
             .is_superset(&self.surface.required_evidence())
         {
             return Err("surface packet omits required evidence");
+        }
+        if self.claims.is_empty() {
+            return Err("surface packet states no claims");
+        }
+        Ok(())
+    }
+
+    /// Preset validation: shape plus the shared scenario's identity and claims.
+    pub fn validate(&self) -> Result<(), &'static str> {
+        self.validate_shape()?;
+        if self.scenario_id != OUTPUT_RECOVERY_ROOM {
+            return Err("unknown shared evaluation scenario");
         }
         if !self
             .claims
@@ -177,7 +209,7 @@ impl SurfacePacket {
     /// declared kind carries a non-null payload and nothing undeclared is
     /// attached. The declaration-only preset fails here by design.
     pub fn validate_complete(&self) -> Result<(), &'static str> {
-        self.validate()?;
+        self.validate_shape()?;
         let mut covered = BTreeSet::new();
         for item in &self.evidence {
             if !self.evidence_kinds.contains(&item.kind) {
@@ -259,6 +291,32 @@ mod tests {
             let value = serde_json::to_value(kind).unwrap();
             assert!(listed.contains(&value), "schema omits {value}");
         }
+    }
+
+    #[test]
+    fn generic_packets_validate_without_the_preset_scenario() {
+        let packet = SurfacePacket::new(
+            "custom-scenario",
+            Surface::Cli,
+            [Claim::OutputVisible],
+            Surface::Cli.required_evidence(),
+        );
+        assert!(packet.validate_shape().is_ok());
+        assert_eq!(packet.validate(), Err("unknown shared evaluation scenario"));
+    }
+
+    #[test]
+    fn a_packet_without_claims_is_rejected() {
+        let packet = SurfacePacket::new(
+            "custom-scenario",
+            Surface::Cli,
+            std::iter::empty::<Claim>(),
+            Surface::Cli.required_evidence(),
+        );
+        assert_eq!(
+            packet.validate_shape(),
+            Err("surface packet states no claims")
+        );
     }
 
     #[test]

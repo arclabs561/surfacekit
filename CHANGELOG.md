@@ -1,6 +1,16 @@
 # Changelog
 
-## 0.2.0 - unreleased
+## 0.3.0 - unreleased
+
+- `SurfacePacket::new` builds packets for scenarios other than the preset;
+  `validate_shape` checks version, observation authority, required evidence,
+  and a non-empty claim set. `validate` remains the preset-specific check.
+- `observe_with_keys` / `ObserverKeys` let a caller name the judge and subject
+  response fields without forking the observer. Defaults are unchanged.
+- `validate_complete` now validates shape plus payload coverage, so it applies
+  to generic packets as well as the preset.
+
+## 0.2.0 - 2026-10-24
 
 - Contract v2 adds `environment_identity` and `executable_check` to required
   evidence for every surface.
