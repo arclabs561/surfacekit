@@ -40,10 +40,36 @@ deleting the stage. Green output is not proof: read warnings, skips, and
 
 ## CI and release
 
-CI repeats tier 0 on pull requests and main. Release runs on a `v*` tag, checks
-that the tag matches `Cargo.toml`, and publishes with `CARGO_REGISTRY_TOKEN`.
-Never publish from a dirty tree; `cargo publish` reads committed state only if
-you pass `--allow-dirty` deliberately.
+CI repeats tier 0 on pull requests and main. Release uses crates.io **Trusted
+Publishing**: the workflow requests an OIDC token, `crates-io-auth-action`
+exchanges it, and `cargo publish` runs without a long-lived secret. Configure
+the publisher once at `https://crates.io/crates/<crate>/settings`.
+
+Release also runs `cargo-semver-checks` before publishing, and uses a
+`workflow_dispatch` confirmation input rather than a tag trigger so an
+accidental push cannot publish. Pin third-party actions to commit SHAs, not
+moving tags.
+
+`--locked` is only meaningful when `Cargo.lock` is committed. A library should
+commit it; a crate that deliberately does not must drop `--locked` instead of
+pretending the lock participates.
+
+## Refinements from existing CI
+
+The first adoption cohort showed the template must not assume one shape:
+
+- Feature-gated crates need a matrix (`--no-default-features`, `--all-features`)
+  and a separate doc-test run (`cargo test --doc`).
+- Crates with a declared MSRV need a pinned-toolchain job, ideally using the
+  lock so dependency drift does not masquerade as an MSRV failure.
+- Binary crates may use `cargo-dist` for artifacts; libraries should not.
+- Some crates publish through Trusted Publishing and semver checks already;
+  the template should copy that, not reintroduce a token.
+- A minimal crate may only need `check`, `test`, `clippy`, and `fmt`; adding
+  doc and package stages is still cheap and catches packaging errors early.
+
+Friction discovered in a package is recorded here and folded into the template
+once two packages need the same change.
 
 ## Adoption
 

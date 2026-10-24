@@ -25,6 +25,9 @@ deny:
 audit:
     cargo audit
 
+semver:
+    cargo semver-checks check-release
+
 package:
     cargo publish --dry-run --allow-dirty --locked
 
