@@ -51,6 +51,11 @@ Release also runs `cargo-semver-checks` before publishing, and uses a
 accidental push cannot publish. Pin third-party actions to commit SHAs, not
 moving tags.
 
+Until the publisher is configured, the release workflow fails at the auth step
+with `No Trusted Publishing config found`. Publish locally with `cargo publish`
+in that state. Do not add a long-lived crates.io token to the repository as a
+shortcut.
+
 `--locked` is only meaningful when `Cargo.lock` is committed. A library should
 commit it; a crate that deliberately does not must drop `--locked` instead of
 pretending the lock participates.
