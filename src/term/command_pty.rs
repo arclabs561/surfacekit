@@ -12,6 +12,7 @@ use std::time::{Duration, Instant};
 use nix::fcntl::{fcntl, FcntlArg, OFlag};
 
 use super::pty::set_pty_winsize;
+use super::screen::{ScreenObserver, ScreenSnapshot};
 
 /// Byte transport used by the actor loop.
 pub trait SessionIo {
@@ -63,6 +64,70 @@ impl CommandPty {
             eof: false,
         })
     }
+
+    /// Drain everything the child has written into `observer` until `ready`
+    /// holds or `timeout` passes. Returns whether it held and the last screen.
+    pub fn wait_until(
+        &mut self,
+        observer: &mut ScreenObserver,
+        timeout: Duration,
+        mut ready: impl FnMut(&ScreenSnapshot) -> bool,
+    ) -> (bool, ScreenSnapshot) {
+        let deadline = Instant::now() + timeout;
+        let mut buf = [0u8; 4096];
+        loop {
+            while let Ok(n) = self.read_available(&mut buf) {
+                if n == 0 {
+                    break;
+                }
+                observer.process(&buf[..n]);
+            }
+            let snapshot = observer.snapshot();
+            if ready(&snapshot) {
+                return (true, snapshot);
+            }
+            if Instant::now() >= deadline || self.eof {
+                return (false, snapshot);
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    }
+
+    /// Read and discard pending output; true once the PTY is closed.
+    fn discard_output(&mut self) -> bool {
+        let mut buf = [0u8; 4096];
+        while let Ok(n) = self.read_available(&mut buf) {
+            if n == 0 {
+                break;
+            }
+        }
+        self.eof
+    }
+}
+
+impl Drop for CommandPty {
+    /// Terminate the child within a fixed bound. rexpect's own drop loops
+    /// until the child is gone, and a child whose terminal output buffer is
+    /// full cannot finish exiting (the kernel drains tty output on close), not
+    /// even after SIGKILL, unless someone keeps reading the master. So keep
+    /// reading while waiting, and escalate to SIGKILL after a short grace.
+    fn drop(&mut self) {
+        use rexpect::process::{Signal, WaitStatus};
+        for (signal, bound) in [
+            (Signal::SIGTERM, Duration::from_secs(1)),
+            (Signal::SIGKILL, Duration::from_secs(5)),
+        ] {
+            let _ = self._process.signal(signal);
+            let deadline = Instant::now() + bound;
+            while Instant::now() < deadline {
+                self.discard_output();
+                match self._process.status() {
+                    Some(WaitStatus::StillAlive) => std::thread::sleep(Duration::from_millis(10)),
+                    Some(_) | None => return,
+                }
+            }
+        }
+    }
 }
 
 impl SessionIo for CommandPty {
@@ -107,5 +172,51 @@ impl SessionIo for CommandPty {
 
     fn is_dead(&self) -> bool {
         self.eof
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A child that ignores SIGTERM and fills its terminal output buffer used
+    /// to hang the owning test forever on drop. Dropping must now return
+    /// within the SIGTERM grace plus the SIGKILL bound.
+    #[test]
+    fn drop_terminates_a_flooding_child_that_ignores_sigterm() {
+        let mut command = Command::new("sh");
+        command.args([
+            "-c",
+            "trap '' TERM; while :; do echo flooding-output-line; done",
+        ]);
+        let pty = CommandPty::spawn(command, 24, 80).expect("spawn");
+        std::thread::sleep(Duration::from_millis(300));
+        let started = Instant::now();
+        let (done, finished) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            drop(pty);
+            let _ = done.send(());
+        });
+        assert!(
+            finished.recv_timeout(Duration::from_secs(10)).is_ok(),
+            "dropping a flooding child did not return"
+        );
+        assert!(started.elapsed() < Duration::from_secs(7));
+    }
+
+    #[test]
+    fn wait_until_returns_the_screen_once_the_predicate_holds() {
+        let mut command = Command::new("sh");
+        command.args(["-c", "printf 'hello surface'; sleep 5"]);
+        let mut pty = CommandPty::spawn(command, 24, 80).expect("spawn");
+        let mut observer = ScreenObserver::new(24, 80);
+        let (held, screen) = pty.wait_until(&mut observer, Duration::from_secs(5), |s| {
+            s.shows("hello surface")
+        });
+        assert!(held, "{}", screen.summary(5));
+        let (held, _) = pty.wait_until(&mut observer, Duration::from_millis(100), |s| {
+            s.shows("never")
+        });
+        assert!(!held);
     }
 }
