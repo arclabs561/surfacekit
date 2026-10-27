@@ -1,9 +1,10 @@
 //! Typed, surface-neutral contracts for evaluators.
 //!
 //! Rust owns the meaning of these packets for CLI and TUI fixtures. The
-//! serialized form is separately admitted by `eval/surface-evaluation.schema.json`
+//! serialized form is separately admitted by `schema/surface-evaluation.schema.json`
 //! so browser evaluators can exchange the same evidence without importing Rust.
 
+use crate::notes::{Note, Notebook};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
@@ -11,7 +12,12 @@ pub const OUTPUT_RECOVERY_ROOM: &str = "output-recovery-room";
 
 /// Current packet revision. v2 adds environment identity and executable
 /// checks, because a rendered screen alone does not prove a terminal task.
-pub const CURRENT_SCHEMA_VERSION: u8 = 2;
+/// v3 adds the critic's running notes and caller-owned scenario claims.
+pub const CURRENT_SCHEMA_VERSION: u8 = 3;
+
+/// Revisions this crate still validates. A v2 packet stays valid as long as
+/// it carries nothing v3 introduced.
+pub const SUPPORTED_SCHEMA_VERSIONS: &[u8] = &[2, 3];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -86,9 +92,19 @@ pub struct SurfacePacket {
     pub observation: Observation,
     pub evidence_kinds: BTreeSet<EvidenceKind>,
     pub claims: BTreeSet<Claim>,
+    /// Claims a caller-owned scenario tests, namespaced as `scope:claim`
+    /// (for example `catalogue:goal_reached`) so none can be mistaken for,
+    /// or satisfy, a preset [`Claim`]. Since schema v3.
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub scenario_claims: BTreeSet<String>,
     /// Populated by the observer. A declaration-only packet may leave this
-    /// empty; [`SurfacePacket::validate_complete`] then fails.
+    /// empty (or omit it, as the schema allows);
+    /// [`SurfacePacket::validate_complete`] then fails.
+    #[serde(default)]
     pub evidence: Vec<Evidence>,
+    /// The critic's running notes, in the order written. Since schema v3.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub notes: Vec<Note>,
 }
 
 impl Surface {
@@ -144,7 +160,9 @@ impl SurfacePacket {
             observation: surface.observation(),
             evidence_kinds: surface.required_evidence(),
             claims: REQUIRED_CLAIMS.iter().copied().collect(),
+            scenario_claims: BTreeSet::new(),
             evidence: Vec::new(),
+            notes: Vec::new(),
         }
     }
 
@@ -165,16 +183,44 @@ impl SurfacePacket {
             observation: surface.observation(),
             evidence_kinds: evidence_kinds.into_iter().collect(),
             claims: claims.into_iter().collect(),
+            scenario_claims: BTreeSet::new(),
             evidence: Vec::new(),
+            notes: Vec::new(),
         }
     }
 
-    /// Version, observation authority, required evidence, and at least one
-    /// claim. Scenario-specific rules belong to [`SurfacePacket::validate`].
+    /// Add claims owned by a caller-defined scenario (`scope:claim`).
+    #[must_use]
+    pub fn with_scenario_claims(
+        mut self,
+        claims: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
+        self.scenario_claims
+            .extend(claims.into_iter().map(Into::into));
+        self
+    }
+
+    /// Attach a critic's notebook.
+    #[must_use]
+    pub fn with_notes(mut self, notebook: &Notebook) -> Self {
+        self.notes = notebook.notes().to_vec();
+        self
+    }
+
+    /// Version, observation authority, required evidence, at least one
+    /// claim, namespaced scenario claims, and a well-formed note record.
+    /// Scenario-specific rules belong to [`SurfacePacket::validate`].
     pub fn validate_shape(&self) -> Result<(), &'static str> {
-        if self.schema_version != CURRENT_SCHEMA_VERSION {
+        if !SUPPORTED_SCHEMA_VERSIONS.contains(&self.schema_version) {
             return Err("unknown surface packet schema version");
         }
+        if self.schema_version < 3 && (!self.notes.is_empty() || !self.scenario_claims.is_empty()) {
+            return Err("notes and scenario claims need schema version 3");
+        }
+        if !self.scenario_claims.iter().all(|c| is_scenario_claim(c)) {
+            return Err("a scenario claim must be namespaced as scope:claim");
+        }
+        Notebook::validate(&self.notes)?;
         if self.observation != self.surface.observation() {
             return Err("surface has the wrong observation authority");
         }
@@ -184,7 +230,7 @@ impl SurfacePacket {
         {
             return Err("surface packet omits required evidence");
         }
-        if self.claims.is_empty() {
+        if self.claims.is_empty() && self.scenario_claims.is_empty() {
             return Err("surface packet states no claims");
         }
         Ok(())
@@ -225,6 +271,20 @@ impl SurfacePacket {
         }
         Ok(())
     }
+}
+
+/// `scope:claim`, each part lowercase ASCII letters, digits, `_`, `.`, or
+/// `-`, starting with a letter or digit. Mirrors the schema's pattern.
+fn is_scenario_claim(claim: &str) -> bool {
+    let part = |text: &str| {
+        text.chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
+            && text
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || "_.-".contains(c))
+    };
+    matches!(claim.split_once(':'), Some((scope, name)) if part(scope) && part(name))
 }
 
 /// How many colors the renderer can distinguish.
@@ -311,6 +371,7 @@ impl TerminalProfile {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::notes::{NoteDraft, NoteKind};
 
     #[test]
     fn every_surface_gets_its_native_observation_and_evidence() {
@@ -433,6 +494,168 @@ mod tests {
         let mut packet = complete_packet(Surface::Tui);
         packet.evidence[0].payload = serde_json::Value::Null;
         assert_eq!(packet.validate_complete(), Err("evidence payload is null"));
+    }
+
+    fn schema() -> serde_json::Value {
+        serde_json::from_str(include_str!("../schema/surface-evaluation.schema.json")).unwrap()
+    }
+
+    fn web_packet(scenario: &str) -> SurfacePacket {
+        SurfacePacket::new(
+            scenario,
+            Surface::Web,
+            std::iter::empty::<Claim>(),
+            Surface::Web.required_evidence(),
+        )
+    }
+
+    #[test]
+    fn a_v2_packet_still_validates_but_cannot_carry_v3_fields() {
+        let mut packet = complete_packet(Surface::Web);
+        packet.schema_version = 2;
+        assert!(packet.validate_complete().is_ok());
+        let text = serde_json::to_string(&packet).unwrap();
+        assert!(!text.contains("notes") && !text.contains("scenario_claims"));
+
+        let mut book = Notebook::new();
+        book.append(NoteDraft::new(NoteKind::Friction, "slow"), 0, None);
+        let packet = packet.with_notes(&book);
+        assert_eq!(
+            packet.validate_shape(),
+            Err("notes and scenario claims need schema version 3")
+        );
+        let mut unknown = complete_packet(Surface::Web);
+        unknown.schema_version = 1;
+        assert_eq!(
+            unknown.validate_shape(),
+            Err("unknown surface packet schema version")
+        );
+    }
+
+    #[test]
+    fn scenario_claims_alone_satisfy_the_claim_rule_when_namespaced() {
+        let packet =
+            web_packet("catalogue-explore").with_scenario_claims(["catalogue:goal_reached"]);
+        assert!(packet.validate_shape().is_ok());
+        assert_eq!(packet.validate(), Err("unknown shared evaluation scenario"));
+        for bad in [
+            "goal_reached",
+            "Catalogue:goal",
+            "catalogue:",
+            ":goal",
+            "a:b c",
+        ] {
+            let packet = web_packet("catalogue-explore").with_scenario_claims([bad]);
+            assert_eq!(
+                packet.validate_shape(),
+                Err("a scenario claim must be namespaced as scope:claim"),
+                "{bad}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_scenario_claim_never_satisfies_a_preset_claim() {
+        let mut packet = complete_packet(Surface::Tui);
+        packet.claims.clear();
+        packet = packet.with_scenario_claims(["preset:output_visible"]);
+        assert!(packet.validate_shape().is_ok());
+        assert_eq!(
+            packet.validate(),
+            Err("surface packet omits a required scenario claim")
+        );
+    }
+
+    #[test]
+    fn notes_travel_in_the_packet_and_must_be_well_formed() {
+        let mut book = Notebook::new();
+        let first = book.append(
+            NoteDraft::new(NoteKind::Observation, "rows load"),
+            10,
+            Some(1),
+        );
+        book.append(
+            NoteDraft::new(NoteKind::ExpectationGap, "rows repeat a series").revising(first),
+            20,
+            Some(2),
+        );
+        let packet = web_packet("catalogue-explore")
+            .with_scenario_claims(["catalogue:recommendations_judged"])
+            .with_notes(&book);
+        assert!(packet.validate_shape().is_ok());
+        let back: SurfacePacket =
+            serde_json::from_str(&serde_json::to_string(&packet).unwrap()).unwrap();
+        assert_eq!(back, packet);
+
+        let mut broken = packet.clone();
+        broken.notes[1].revises = Some(7);
+        assert_eq!(
+            broken.validate_shape(),
+            Err("a note revises an id that is not earlier in the notebook")
+        );
+    }
+
+    #[test]
+    fn schema_lists_every_note_kind_and_admits_v3_fields() {
+        let schema = schema();
+        let kinds = schema["$defs"]["note"]["properties"]["kind"]["enum"]
+            .as_array()
+            .unwrap();
+        for kind in [
+            NoteKind::Observation,
+            NoteKind::ExpectationGap,
+            NoteKind::Friction,
+            NoteKind::Delight,
+            NoteKind::Question,
+        ] {
+            let value = serde_json::to_value(kind).unwrap();
+            assert!(kinds.contains(&value), "schema omits note kind {value}");
+        }
+        assert_eq!(
+            schema["$defs"]["note"]["properties"]["text"]["maxLength"],
+            serde_json::json!(crate::notes::MAX_NOTE_CHARS)
+        );
+        for property in ["notes", "scenario_claims"] {
+            assert!(schema["properties"][property].is_object(), "{property}");
+        }
+    }
+
+    #[test]
+    fn schema_examples_deserialize_and_validate_their_shape() {
+        for example in schema()["examples"].as_array().unwrap() {
+            let packet: SurfacePacket = serde_json::from_value(example.clone()).unwrap();
+            assert!(packet.validate_shape().is_ok(), "{example}");
+        }
+    }
+
+    #[test]
+    fn web_requirements_in_the_schema_match_the_contract() {
+        let schema = schema();
+        for (surface, key) in [
+            (Surface::Cli, "cli_requirements"),
+            (Surface::Tui, "tui_requirements"),
+            (Surface::Web, "web_requirements"),
+        ] {
+            let listed: BTreeSet<String> = schema["$defs"][key]["properties"]["evidence_kinds"]
+                ["allOf"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|clause| clause["contains"]["const"].as_str().unwrap().to_string())
+                .collect();
+            let required: BTreeSet<String> = surface
+                .required_evidence()
+                .into_iter()
+                .map(|kind| {
+                    serde_json::to_value(kind)
+                        .unwrap()
+                        .as_str()
+                        .unwrap()
+                        .to_string()
+                })
+                .collect();
+            assert_eq!(listed, required, "{key}");
+        }
     }
 
     #[test]

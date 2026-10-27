@@ -1,18 +1,19 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:surfacekit:surface-evaluation:v1",
+  "$id": "urn:surfacekit:surface-evaluation:v3",
   "title": "surfacekit cross-surface evaluation packet",
-  "description": "A portable observation packet for one shared evaluation scenario. This schema admits evidence shape only; it does not assign a product verdict or score.",
+  "description": "A portable observation packet for one evaluation scenario: the shared output-recovery-room preset or a caller-owned scenario. This schema admits evidence shape only; it does not assign a product verdict or score.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
     "schema_version": {
-      "const": 2,
-      "description": "Schema revision for this packet. v2 adds environment_identity and executable_check."
+      "const": 3,
+      "description": "Schema revision for this packet. v2 adds environment_identity and executable_check; v3 adds notes, scenario_claims, caller-owned scenario ids, and requires environment_identity and executable_check on every surface, as the Rust contract already did."
     },
     "scenario_id": {
-      "const": "output-recovery-room",
-      "description": "The shared output recovery and interleaved-actor scenario."
+      "type": "string",
+      "minLength": 1,
+      "description": "The evaluated scenario. output-recovery-room is the shared preset and must state all seven of its claims; any other id is caller-owned."
     },
     "surface": {
       "type": "string",
@@ -73,7 +74,16 @@
           "handoff_is_notice_not_reply"
         ]
       },
-      "description": "Scenario claims tested by retained evidence. Valid shape does not establish that any claim is true."
+      "description": "Preset scenario claims tested by retained evidence. Valid shape does not establish that any claim is true."
+    },
+    "scenario_claims": {
+      "type": "array",
+      "uniqueItems": true,
+      "description": "Claims a caller-owned scenario tests, namespaced as scope:claim so none can be mistaken for a preset claim.",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9_.-]*:[a-z0-9][a-z0-9_.-]*$"
+      }
     },
     "evidence": {
       "type": "array",
@@ -109,6 +119,13 @@
             }
           }
         }
+      }
+    },
+    "notes": {
+      "type": "array",
+      "description": "The critic's running notes in the order written. Append-only: a revision is a later note whose revises names an earlier id; ids strictly increase (a runtime check).",
+      "items": {
+        "$ref": "#/$defs/note"
       }
     }
   },
@@ -240,6 +257,16 @@
               "contains": {
                 "const": "run_record"
               }
+            },
+            {
+              "contains": {
+                "const": "environment_identity"
+              }
+            },
+            {
+              "contains": {
+                "const": "executable_check"
+              }
             }
           ]
         }
@@ -270,6 +297,16 @@
             {
               "contains": {
                 "const": "run_record"
+              }
+            },
+            {
+              "contains": {
+                "const": "environment_identity"
+              }
+            },
+            {
+              "contains": {
+                "const": "executable_check"
               }
             }
           ]
@@ -302,8 +339,70 @@
               "contains": {
                 "const": "run_record"
               }
+            },
+            {
+              "contains": {
+                "const": "environment_identity"
+              }
+            },
+            {
+              "contains": {
+                "const": "executable_check"
+              }
             }
           ]
+        }
+      }
+    },
+    "note": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "at_ms",
+        "kind",
+        "text"
+      ],
+      "properties": {
+        "id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "at_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Milliseconds since the session started."
+        },
+        "step": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "The actor step the note follows."
+        },
+        "kind": {
+          "enum": [
+            "observation",
+            "expectation_gap",
+            "friction",
+            "delight",
+            "question"
+          ]
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 400
+        },
+        "revises": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "An earlier note this one supersedes."
+        },
+        "latency_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Measured latency of the critic call that wrote the note; absent means not measured."
+        },
+        "within_budget": {
+          "type": "boolean"
         }
       }
     }
@@ -355,58 +454,93 @@
       }
     },
     {
-      "properties": {
-        "claims": {
-          "allOf": [
-            {
-              "contains": {
-                "const": "output_visible"
+      "if": {
+        "properties": {
+          "scenario_id": {
+            "const": "output-recovery-room"
+          }
+        },
+        "required": [
+          "scenario_id"
+        ]
+      },
+      "then": {
+        "properties": {
+          "claims": {
+            "allOf": [
+              {
+                "contains": {
+                  "const": "output_visible"
+                }
+              },
+              {
+                "contains": {
+                  "const": "reference_addressable"
+                }
+              },
+              {
+                "contains": {
+                  "const": "interruption_preserved"
+                }
+              },
+              {
+                "contains": {
+                  "const": "recovery_without_regeneration"
+                }
+              },
+              {
+                "contains": {
+                  "const": "actors_attributed"
+                }
+              },
+              {
+                "contains": {
+                  "const": "actor_context_isolated"
+                }
+              },
+              {
+                "contains": {
+                  "const": "handoff_is_notice_not_reply"
+                }
               }
-            },
-            {
-              "contains": {
-                "const": "reference_addressable"
-              }
-            },
-            {
-              "contains": {
-                "const": "interruption_preserved"
-              }
-            },
-            {
-              "contains": {
-                "const": "recovery_without_regeneration"
-              }
-            },
-            {
-              "contains": {
-                "const": "actors_attributed"
-              }
-            },
-            {
-              "contains": {
-                "const": "actor_context_isolated"
-              }
-            },
-            {
-              "contains": {
-                "const": "handoff_is_notice_not_reply"
-              }
-            }
-          ]
+            ]
+          }
         }
       }
+    },
+    {
+      "anyOf": [
+        {
+          "properties": {
+            "claims": {
+              "minItems": 1
+            }
+          }
+        },
+        {
+          "required": [
+            "scenario_claims"
+          ],
+          "properties": {
+            "scenario_claims": {
+              "minItems": 1
+            }
+          }
+        }
+      ]
     }
   ],
   "examples": [
     {
-      "schema_version": 1,
+      "schema_version": 3,
       "scenario_id": "output-recovery-room",
       "surface": "tui",
       "observation": "managed_pty",
       "evidence_kinds": [
-        "pty_transcript",
+        "environment_identity",
+        "executable_check",
         "key_events",
+        "pty_transcript",
         "resize_events",
         "run_record"
       ],
@@ -428,6 +562,43 @@
         "actors_attributed",
         "actor_context_isolated",
         "handoff_is_notice_not_reply"
+      ]
+    },
+    {
+      "schema_version": 3,
+      "scenario_id": "catalogue-explore/phone-reader",
+      "surface": "web",
+      "observation": "bounded_playwright",
+      "evidence_kinds": [
+        "browser_events",
+        "screenshots",
+        "dom_predicates",
+        "run_record",
+        "environment_identity",
+        "executable_check"
+      ],
+      "claims": [],
+      "scenario_claims": [
+        "catalogue:goal_reached"
+      ],
+      "notes": [
+        {
+          "id": 1,
+          "at_ms": 1200,
+          "step": 1,
+          "kind": "observation",
+          "text": "Home opens on recommendation rows.",
+          "latency_ms": 900,
+          "within_budget": true
+        },
+        {
+          "id": 2,
+          "at_ms": 4100,
+          "step": 3,
+          "kind": "expectation_gap",
+          "text": "Closing the filter sheet dropped the staged tag.",
+          "revises": 1
+        }
       ]
     }
   ]
