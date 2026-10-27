@@ -9,13 +9,13 @@ The code is extracted from the terminal harness in [piku](https://github.com/arc
 Default build (contract, PTY observation, scenarios, judge):
 
 ```toml
-surfacekit = "0.6"
+surfacekit = "0.7"
 ```
 
 Contract only, without PTY, VT100, or judge dependencies:
 
 ```toml
-surfacekit = { version = "0.6", default-features = false, features = ["contract"] }
+surfacekit = { version = "0.7", default-features = false, features = ["contract"] }
 ```
 
 ## Layers
@@ -34,7 +34,7 @@ crates.
 
 ## Status
 
-`0.1.0` through `0.6.0` are published. `cargo test` runs 86 tests.
+`0.1.0` through `0.7.0` are published. `cargo test` runs 86 tests.
 Two live OpenRouter tests are opt-in. CI runs format, clippy, nextest, a
 contract-only build, docs, and a publish dry-run.
 

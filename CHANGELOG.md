@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.0 - 2026-10-27
 
 - Breaking: packet schema v3. `SurfacePacket` gains `notes` (a critic's
   running notes) and `scenario_claims` (`scope:claim` strings owned by a
