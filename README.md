@@ -23,8 +23,9 @@ surfacekit = { version = "0.6", default-features = false, features = ["contract"
 | Module | Feature | Role |
 | --- | --- | --- |
 | `contract` | always | `Surface`, `Observation`, `EvidenceKind`, `Claim`, `Evidence`, `SurfacePacket`, JSON schema. |
+| `notes` | always | `Notebook`, `Note`, `NoteDraft`, `NoteKind`: a critic's dated, append-only running notes, carried in the packet. |
 | `term` | `term` | Real PTY handles, `SessionIo`, capability profiles, emulator seam, VT100 observers, workspace diff, recording. |
-| `scenario` | `scenario` | Actors, action resolutions, encode, timeline, replay, regression cases, trials, evidence records, bounded live critique. |
+| `scenario` | `scenario` | Actors, action resolutions, encode, timeline, replay, regression cases, trials, evidence records, bounded live critique, stateless (`Critic`) or with a running notebook (`NotingCritic`). |
 | `judge` | `judge` | Deterministic checks, a provider-neutral judge seam, and order-swapped pairwise judging. |
 
 `scenario` requires `term`; `judge` requires `scenario`. The modules are not
@@ -33,7 +34,7 @@ crates.
 
 ## Status
 
-`0.1.0` through `0.6.0` are published. `cargo test` runs 64 tests.
+`0.1.0` through `0.6.0` are published. `cargo test` runs 86 tests.
 Two live OpenRouter tests are opt-in. CI runs format, clippy, nextest, a
 contract-only build, docs, and a publish dry-run.
 
@@ -52,7 +53,8 @@ with the projects that already implement them.
 - The terminal profile is declared, not probed; a mismatch is evidence, not a
   type error.
 - `eval/` keeps the historical schemas used by tests; `schema/` is the
-  published copy, with v1 archived under `schema/v1/`.
+  published copy (v3), with v1 and v2 archived under `schema/v1/` and
+  `schema/v2/`.
 
 ## Development
 

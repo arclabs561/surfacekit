@@ -22,7 +22,7 @@ Each stage has a type, so a consumer can enter at any point:
 | Session | `TerminalProfile`, `Vt100Emulator`, `CommandPty`, `SessionIo` | implemented |
 | Action | `ActionPlan`, `Step`, `Resolution`, `encode` | implemented |
 | Timeline | `Timeline`, `Event` | implemented |
-| Critique | `Event::Check`, `Event::Critique`, `VerificationProvenance`, `Critic` | implemented; bounded latency |
+| Critique | `Event::Check`, `Event::Critique`, `VerificationProvenance`, `Critic`, `NotingCritic`, `Notebook` | implemented; bounded latency; stateful notes (unreleased) |
 | Annotation | `Event::Marker`, `CheckSpec`, `Case` | implemented |
 | Replay | `replay`, `replay_case`, `MatchMode`, `Divergence` | implemented |
 | Trials | `Trial`, `TrialSet`, `pass_at_k` | implemented |

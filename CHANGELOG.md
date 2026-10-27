@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- Breaking: packet schema v3. `SurfacePacket` gains `notes` (a critic's
+  running notes) and `scenario_claims` (`scope:claim` strings owned by a
+  caller-defined scenario); `LoopReport` gains `notes`. Code that builds
+  either struct with a literal must add the fields. `validate_shape` accepts
+  v2 and v3 (`SUPPORTED_SCHEMA_VERSIONS`); a v2 packet may not carry the new
+  fields. The v2 schema is archived at `schema/v2/`.
+- The v3 schema admits any `scenario_id`; the seven output-recovery claims
+  are required only when the id is `output-recovery-room`, which matches what
+  `validate_shape` already did. It also requires `environment_identity` and
+  `executable_check` on every surface, as `required_evidence` did since v2
+  while the v2 schema did not. A packet may omit `evidence`, as the schema
+  always allowed; it deserializes as empty.
+- `notes::Notebook`: dated, numbered, append-only notes (`observation`,
+  `expectation_gap`, `friction`, `delight`, `question`). A revision is a new
+  note that names the one it supersedes; `current()` hides superseded notes,
+  `render(limit)` gives bounded prompt text with ids.
+- `NotingCritic` and `run_actor_with_notebook`: after each action the critic
+  reads the screen, the action, and its current notes, and appends drafts.
+  Each note records the step and the measured latency of the call that wrote
+  it. `VerdictNotes` runs a stateless `Critic` in the same loop;
+  `run_actor_with_critic` is unchanged.
+
 - `CommandPty` teardown is bounded: dropping it sends SIGTERM, then SIGKILL
   after 1s, and keeps reading the master while it waits (5s cap). Before, it
   fell through to rexpect's drop, which loops until the child is gone, and a

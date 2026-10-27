@@ -16,6 +16,9 @@ constraints; it does not claim to reproduce their experiments.
 
 - Contract v2 adds `environment_identity` and `executable_check` to every
   surface's required evidence. The v1 schema is archived at `schema/v1/`.
+- Contract v3 carries the critic's running notes and caller-owned scenario
+  claims, so a per-turn record (TRACE's evidence bank) travels with the
+  packet instead of only the final verdict. v2 is archived at `schema/v2/`.
 - `judge::pairwise` asks both orders and reports `Consistent`, `Inconsistent`,
   or `Tie`. Only `Consistent` yields a winner, and only for that pair.
 - The recursive observer already rejects claims that cite turns outside the
