@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.1 - 2026-10-27
+
+- `CommandPty::signal` sends a signal, given as a raw number such as
+  `libc::SIGUSR1`, to the child, so a consumer can test its program's own
+  signal handling (a dev-reload or terminal-restore handler) without
+  reaching past `CommandPty` to rexpect. Taking a number keeps nix's version
+  out of this crate's API.
+
 ## 0.7.0 - 2026-10-27
 
 - Breaking: packet schema v3. `SurfacePacket` gains `notes` (a critic's

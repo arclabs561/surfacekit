@@ -128,6 +128,17 @@ impl CommandPty {
         }
     }
 
+    /// Send `signal` (a raw number such as `libc::SIGUSR1`) to the child, for
+    /// tests of a program's own signal handling. A plain number keeps nix's
+    /// version out of this crate's API.
+    pub fn signal(&mut self, signal: i32) -> io::Result<()> {
+        let signal = rexpect::process::Signal::try_from(signal)
+            .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error.to_string()))?;
+        self._process
+            .signal(signal)
+            .map_err(|error| io::Error::other(error.to_string()))
+    }
+
     /// Another handle to the PTY master, for terminal ioctls (window size,
     /// termios) a caller needs beyond [`SessionIo`].
     pub fn master(&self) -> io::Result<File> {
@@ -258,6 +269,26 @@ mod tests {
             pty.exit_code(),
             Some(3),
             "a second query must not lose the status"
+        );
+    }
+
+    #[test]
+    fn signal_reaches_the_child_handler() {
+        let mut command = Command::new("sh");
+        command.args([
+            "-c",
+            "trap 'exit 7' USR1; printf ready; while :; do sleep 0.05; done",
+        ]);
+        let mut pty = CommandPty::spawn(command, 24, 80).expect("spawn");
+        let mut observer = ScreenObserver::new(24, 80);
+        let (ready, _) =
+            pty.wait_until(&mut observer, Duration::from_secs(5), |s| s.shows("ready"));
+        assert!(ready);
+        pty.signal(libc::SIGUSR1).expect("signal");
+        assert_eq!(pty.wait_for_exit(Duration::from_secs(5)), Some(7));
+        assert!(
+            pty.signal(-1).is_err(),
+            "an invalid signal number is an error"
         );
     }
 
