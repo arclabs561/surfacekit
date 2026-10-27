@@ -29,6 +29,8 @@ pub struct CommandPty {
     writer: File,
     reader: File,
     eof: bool,
+    /// Exit code, once observed; `waitpid` reports it only once.
+    exited: Option<i32>,
 }
 
 impl CommandPty {
@@ -62,6 +64,7 @@ impl CommandPty {
             writer,
             reader,
             eof: false,
+            exited: None,
         })
     }
 
@@ -93,6 +96,44 @@ impl CommandPty {
         }
     }
 
+    /// The child's exit code once it has exited (128 + signal when killed by
+    /// one), or `None` while it runs. Never blocks.
+    pub fn exit_code(&mut self) -> Option<i32> {
+        use rexpect::process::WaitStatus;
+        if let Some(code) = self.exited {
+            return Some(code);
+        }
+        let code = match self._process.status()? {
+            WaitStatus::Exited(_, code) => code,
+            WaitStatus::Signaled(_, signal, _) => 128 + signal as i32,
+            _ => return None,
+        };
+        self.exited = Some(code);
+        Some(code)
+    }
+
+    /// Wait up to `timeout` for the child to exit on its own, reading its
+    /// output meanwhile so a full terminal buffer cannot stall the exit.
+    pub fn wait_for_exit(&mut self, timeout: Duration) -> Option<i32> {
+        let deadline = Instant::now() + timeout;
+        loop {
+            self.discard_output();
+            if let Some(code) = self.exit_code() {
+                return Some(code);
+            }
+            if Instant::now() >= deadline {
+                return None;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+
+    /// Another handle to the PTY master, for terminal ioctls (window size,
+    /// termios) a caller needs beyond [`SessionIo`].
+    pub fn master(&self) -> io::Result<File> {
+        self.writer.try_clone()
+    }
+
     /// Read and discard pending output; true once the PTY is closed.
     fn discard_output(&mut self) -> bool {
         let mut buf = [0u8; 4096];
@@ -113,6 +154,9 @@ impl Drop for CommandPty {
     /// reading while waiting, and escalate to SIGKILL after a short grace.
     fn drop(&mut self) {
         use rexpect::process::{Signal, WaitStatus};
+        if self.exited.is_some() {
+            return;
+        }
         for (signal, bound) in [
             (Signal::SIGTERM, Duration::from_secs(1)),
             (Signal::SIGKILL, Duration::from_secs(5)),
@@ -202,6 +246,28 @@ mod tests {
             "dropping a flooding child did not return"
         );
         assert!(started.elapsed() < Duration::from_secs(7));
+    }
+
+    #[test]
+    fn exit_code_reports_the_status_once_and_keeps_it() {
+        let mut command = Command::new("sh");
+        command.args(["-c", "printf done; exit 3"]);
+        let mut pty = CommandPty::spawn(command, 24, 80).expect("spawn");
+        assert_eq!(pty.wait_for_exit(Duration::from_secs(5)), Some(3));
+        assert_eq!(
+            pty.exit_code(),
+            Some(3),
+            "a second query must not lose the status"
+        );
+    }
+
+    #[test]
+    fn wait_for_exit_gives_up_on_a_running_child() {
+        let mut command = Command::new("sh");
+        command.args(["-c", "sleep 5"]);
+        let mut pty = CommandPty::spawn(command, 24, 80).expect("spawn");
+        assert_eq!(pty.wait_for_exit(Duration::from_millis(200)), None);
+        assert!(pty.master().is_ok());
     }
 
     #[test]

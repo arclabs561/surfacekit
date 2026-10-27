@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- `CommandPty` teardown is bounded: dropping it sends SIGTERM, then SIGKILL
+  after 1s, and keeps reading the master while it waits (5s cap). Before, it
+  fell through to rexpect's drop, which loops until the child is gone, and a
+  child with a full terminal output buffer could not finish exiting while
+  nothing read the master, so one failed assertion could hang a test suite.
+- `CommandPty::wait_until` drains output into a `ScreenObserver` until a
+  screen predicate holds or a timeout passes.
+- `CommandPty::exit_code` (non-blocking, remembered once observed),
+  `wait_for_exit` (bounded, reads output while waiting), and `master` (a
+  handle for terminal ioctls).
+
 ## 0.6.0 - 2026-10-24
 
 - `Critic` trait and `CritiqueContext`: a live critic reads the same screen the
