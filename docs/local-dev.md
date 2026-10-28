@@ -7,10 +7,10 @@ feedback while editing, one full check before commit, identical proof in CI.
 
 | Tier | Tools | When |
 | --- | --- | --- |
-| 0 — always | `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test --locked`, `cargo doc --no-deps` | Every commit |
-| 1 — speed | `cargo-nextest`, `bacon` | Inner loop while editing |
-| 2 — supply chain | `cargo-deny`, `cargo-audit` | Before release, weekly |
-| 3 — mutation | `cargo-mutants` | Before a major release, not per commit |
+| 0: always | `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test --locked`, `cargo doc --no-deps` | Every commit |
+| 1: speed | `cargo-nextest`, `bacon` | Inner loop while editing |
+| 2: supply chain | `cargo-deny`, `cargo-audit` | Before release, weekly |
+| 3: mutation | `cargo-mutants` | Before a major release, not per commit |
 
 `just check` runs tier 0, a contract-only build, and `cargo publish --dry-run`.
 `just test` prefers `cargo-nextest` when installed and falls back to

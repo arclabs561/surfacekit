@@ -15,7 +15,7 @@ surfacekit = "0.7"
 Contract only, without PTY, VT100, or judge dependencies:
 
 ```toml
-surfacekit = { version = "0.7", default-features = false, features = ["contract"] }
+surfacekit = { version = "0.7", default-features = false }
 ```
 
 ## Layers
@@ -34,13 +34,13 @@ crates.
 
 ## Status
 
-`0.1.0` through `0.7.0` are published. `cargo test` runs 86 tests.
-Two live OpenRouter tests are opt-in. CI runs format, clippy, nextest, a
+`0.1.0` through `0.7.0` are published. Run local checks with `cargo test`.
+Two live OpenRouter tests are opt-in. CI runs format, clippy, `cargo test`, a
 contract-only build, docs, and a publish dry-run.
 
 ## Boundary
 
-This crate observes and proves. It does not own product TUIs, provider
+This crate records observations and checks claims. It does not own product TUIs, provider
 transports, durable notebooks, comparison math, or coordination. Those stay
 with the projects that already implement them.
 
