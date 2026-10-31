@@ -53,7 +53,12 @@ impl TrialSet {
         if n - c < k {
             return Some(1.0);
         }
-        Some(1.0 - combination(n - c, k) as f64 / combination(n, k) as f64)
+        // Product form from Chen et al. (2021), "Evaluating Large Language
+        // Models Trained on Code", Figure 3: C(n-c,k)/C(n,k) equals
+        // prod_{i=n-c+1}^{n} (1 - k/i), with no binomial coefficients to
+        // overflow at the paper's n = 200.
+        let fail_all: f64 = (n - c + 1..=n).map(|i| 1.0 - k as f64 / i as f64).product();
+        Some(1.0 - fail_all)
     }
 
     #[must_use]
@@ -69,13 +74,6 @@ impl TrialSet {
             Some(costs.iter().sum::<f64>() / costs.len() as f64)
         }
     }
-}
-
-fn combination(n: usize, k: usize) -> u128 {
-    if k > n {
-        return 0;
-    }
-    (0..k).fold(1u128, |acc, i| acc * (n - i) as u128 / (i + 1) as u128)
 }
 
 #[cfg(test)]
@@ -114,5 +112,17 @@ mod tests {
         assert_eq!(half.pass_at_k(1), Some(0.5));
         assert_eq!(half.pass_at_k(2), Some(1.0));
         assert_eq!(half.pass_at_k(3), None);
+    }
+
+    #[test]
+    fn pass_at_k_handles_the_papers_n200_setting() {
+        // Chen et al. (2021) estimate pass@k from n = 200 samples. C(200, 100)
+        // is about 9e58, beyond u128. Expected values are the exact rationals
+        // 1 - C(197, 100) / C(200, 100) and 1 - C(190, 10) / C(200, 10).
+        let set = |c: usize| TrialSet::new((0..200).map(|i| trial(i < c, 0.0)).collect());
+        let at_100 = set(3).pass_at_k(100).unwrap();
+        assert!((at_100 - 0.876_884_422_110_552_7).abs() < 1e-12, "{at_100}");
+        let at_10 = set(10).pass_at_k(10).unwrap();
+        assert!((at_10 - 0.408_547_866_081_417_13).abs() < 1e-12, "{at_10}");
     }
 }

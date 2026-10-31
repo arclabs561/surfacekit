@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- `TrialSet::pass_at_k` no longer overflows `u128` binomial coefficients (a
+  panic in debug builds, a wrapped wrong value in release) at sizes such as
+  n = 200, k = 100, the setting Chen et al. (2021) report. It uses their
+  product form `1 - prod_{i=n-c+1}^{n} (1 - k/i)`.
+
 ## 0.7.1 - 2026-10-27
 
 - `CommandPty::signal` sends a signal, given as a raw number such as
