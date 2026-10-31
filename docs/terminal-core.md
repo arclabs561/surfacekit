@@ -47,17 +47,17 @@ Consumers and what they actually need:
 
 Four independent concepts:
 
-- `TerminalProfile` — declared capabilities: dimensions, color depth,
+- `TerminalProfile`: declared capabilities: dimensions, color depth,
   alternate screen, bracketed paste, mouse, SGR mouse, focus events,
   hyperlinks, kitty keyboard, OSC 133/7, scrollback depth. Presets `vt100`,
   `xterm`, `ghostty`.
-- `TerminalEmulator` — `feed`, `resize`, `screen_text`, `profile`.
+- `TerminalEmulator`: `feed`, `resize`, `screen_text`, `profile`.
   `Vt100Emulator` is the first implementation; `TerminalObserver::resize` now
   uses `Screen::set_size`.
-- `ActionPlan` / `Step` — the resolution ladder: `Plan`, `Command`, `Line`,
+- `ActionPlan` / `Step`: the resolution ladder: `Plan`, `Command`, `Line`,
   `Text`, `Paste`, `KeyChord`, `PhysicalKey`, `Wait`, `Raw`. `encode` maps a
   plan to bytes using the profile.
-- `Timeline` — monotonic events: `output`, `action`, `key`, `resize`,
+- `Timeline`: monotonic events: `output`, `action`, `key`, `resize`,
   `marker`, `check`, `critique`. `Replay` re-feeds actions into a fresh
   emulator and reports divergence. `Case` is the regression quadruple
   `init / act / check / teardown`, with `live_dependencies` named explicitly.
