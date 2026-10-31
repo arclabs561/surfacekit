@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+### Changed (breaking)
+
+- `SurfacePacket` gains `recording: Option<RecordingMetadata>`, typed to the
+  schema's `recording_metadata` (with `RecordingStatus`, `Inspectability`,
+  `SourceArtifact` and `Retention`). Deserializing a packet previously
+  dropped its `recording`, so a re-serialized packet lost it.
+  `validate_shape` requires a non-empty `reason` when the recording is
+  incomplete or uninspectable, at least one source artifact, and non-empty
+  artifact references, as the schema does.
+- `SurfacePacket` is `#[non_exhaustive]`: build it with `SurfacePacket::new`
+  or `SurfacePacket::output_recovery_room` and set fields afterwards, so
+  later schema fields are not breaking.
+
+### Fixed
+
 - `TrialSet::pass_at_k` no longer overflows `u128` binomial coefficients (a
   panic in debug builds, a wrapped wrong value in release) at sizes such as
   n = 200, k = 100, the setting Chen et al. (2021) report. It uses their
