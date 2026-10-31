@@ -25,7 +25,8 @@ pub mod scenario;
 pub mod term;
 
 pub use contract::{
-    Claim, EvidenceKind, Observation, Surface, SurfacePacket, CURRENT_SCHEMA_VERSION,
+    Claim, EvidenceKind, Inspectability, Observation, RecordingMetadata, RecordingStatus,
+    Retention, SourceArtifact, Surface, SurfacePacket, CURRENT_SCHEMA_VERSION,
     OUTPUT_RECOVERY_ROOM, SUPPORTED_SCHEMA_VERSIONS,
 };
 pub use notes::{Note, NoteDraft, NoteKind, Notebook};

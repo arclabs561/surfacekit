@@ -84,7 +84,62 @@ pub struct Evidence {
     pub payload: serde_json::Value,
 }
 
+/// Whether a recording reached a complete terminal state.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RecordingStatus {
+    Complete,
+    Incomplete,
+}
+
+/// Whether a judge can inspect a recording's retained source artifacts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Inspectability {
+    Inspectable,
+    Uninspectable,
+}
+
+/// Retention boundary of one source artifact reference.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Retention {
+    Durable,
+    LocalPrivate,
+    RemoteRedacted,
+    Ephemeral,
+}
+
+/// One retained artifact that backs a recording.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SourceArtifact {
+    /// Caller-owned reference, such as `cast:output-recovery`.
+    #[serde(rename = "ref")]
+    pub reference: String,
+    pub retention: Retention,
+}
+
+/// Compatibility metadata for the replay that backs a packet: the schema's
+/// `recording_metadata`. A judge must reject an absent, incomplete, or
+/// uninspectable recording.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecordingMetadata {
+    pub status: RecordingStatus,
+    pub inspectability: Inspectability,
+    pub source_artifacts: Vec<SourceArtifact>,
+    /// Why the recording is incomplete or cannot be inspected. Required when
+    /// it is either.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+}
+
+/// Construct with [`SurfacePacket::new`] or
+/// [`SurfacePacket::output_recovery_room`]; fields stay public to read and
+/// set.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct SurfacePacket {
     pub schema_version: u8,
     pub scenario_id: String,
@@ -105,6 +160,9 @@ pub struct SurfacePacket {
     /// The critic's running notes, in the order written. Since schema v3.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub notes: Vec<Note>,
+    /// Metadata for the replay that backs this packet, when there is one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recording: Option<RecordingMetadata>,
 }
 
 impl Surface {
@@ -163,6 +221,7 @@ impl SurfacePacket {
             scenario_claims: BTreeSet::new(),
             evidence: Vec::new(),
             notes: Vec::new(),
+            recording: None,
         }
     }
 
@@ -186,6 +245,7 @@ impl SurfacePacket {
             scenario_claims: BTreeSet::new(),
             evidence: Vec::new(),
             notes: Vec::new(),
+            recording: None,
         }
     }
 
@@ -208,7 +268,9 @@ impl SurfacePacket {
     }
 
     /// Version, observation authority, required evidence, at least one
-    /// claim, namespaced scenario claims, and a well-formed note record.
+    /// claim, namespaced scenario claims, a well-formed note record, and
+    /// recording metadata that gives a reason when it is incomplete or
+    /// uninspectable.
     /// Scenario-specific rules belong to [`SurfacePacket::validate`].
     pub fn validate_shape(&self) -> Result<(), &'static str> {
         if !SUPPORTED_SCHEMA_VERSIONS.contains(&self.schema_version) {
@@ -221,6 +283,9 @@ impl SurfacePacket {
             return Err("a scenario claim must be namespaced as scope:claim");
         }
         Notebook::validate(&self.notes)?;
+        if let Some(recording) = &self.recording {
+            recording.validate()?;
+        }
         if self.observation != self.surface.observation() {
             return Err("surface has the wrong observation authority");
         }
@@ -268,6 +333,29 @@ impl SurfacePacket {
         }
         if !self.evidence_kinds.is_subset(&covered) {
             return Err("declared evidence kind has no payload");
+        }
+        Ok(())
+    }
+}
+
+impl RecordingMetadata {
+    /// The schema's rules: at least one source artifact, each with a
+    /// non-empty reference, and a non-empty `reason` whenever the recording
+    /// is incomplete or uninspectable.
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.source_artifacts.is_empty() {
+            return Err("a recording names no source artifact");
+        }
+        if self.source_artifacts.iter().any(|a| a.reference.is_empty()) {
+            return Err("a recording source artifact has an empty reference");
+        }
+        if self.reason.as_deref() == Some("") {
+            return Err("a recording reason is empty");
+        }
+        let needs_reason = self.status == RecordingStatus::Incomplete
+            || self.inspectability == Inspectability::Uninspectable;
+        if needs_reason && self.reason.is_none() {
+            return Err("an incomplete or uninspectable recording needs a reason");
         }
         Ok(())
     }
@@ -626,6 +714,108 @@ mod tests {
             let packet: SurfacePacket = serde_json::from_value(example.clone()).unwrap();
             assert!(packet.validate_shape().is_ok(), "{example}");
         }
+    }
+
+    /// The schema's example recording survives a round trip instead of
+    /// being dropped on deserialize.
+    #[test]
+    fn schema_example_recording_round_trips() {
+        let example = schema()["examples"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|example| example.get("recording").is_some())
+            .cloned()
+            .expect("an example with a recording");
+        let packet: SurfacePacket = serde_json::from_value(example.clone()).unwrap();
+        let recording = packet.recording.as_ref().expect("recording kept");
+        assert_eq!(recording.status, RecordingStatus::Complete);
+        assert_eq!(
+            recording.source_artifacts[0].reference,
+            "cast:output-recovery"
+        );
+        assert_eq!(
+            recording.source_artifacts[0].retention,
+            Retention::LocalPrivate
+        );
+        assert!(packet.validate_shape().is_ok());
+        let back = serde_json::to_value(&packet).unwrap();
+        assert_eq!(back["recording"], example["recording"]);
+    }
+
+    #[test]
+    fn incomplete_or_uninspectable_recordings_need_a_reason() {
+        let example = schema()["examples"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|example| example.get("recording").is_some())
+            .cloned()
+            .unwrap();
+        let packet: SurfacePacket = serde_json::from_value(example).unwrap();
+        let with = |edit: fn(&mut RecordingMetadata)| {
+            let mut packet = packet.clone();
+            edit(packet.recording.as_mut().unwrap());
+            packet.validate_shape()
+        };
+        let needs = Err("an incomplete or uninspectable recording needs a reason");
+        assert_eq!(with(|r| r.status = RecordingStatus::Incomplete), needs);
+        assert_eq!(
+            with(|r| r.inspectability = Inspectability::Uninspectable),
+            needs
+        );
+        assert!(with(|r| {
+            r.status = RecordingStatus::Incomplete;
+            r.reason = Some("player crashed".into());
+        })
+        .is_ok());
+        assert_eq!(
+            with(|r| r.reason = Some(String::new())),
+            Err("a recording reason is empty")
+        );
+        assert_eq!(
+            with(|r| r.source_artifacts.clear()),
+            Err("a recording names no source artifact")
+        );
+        assert_eq!(
+            with(|r| r.source_artifacts[0].reference.clear()),
+            Err("a recording source artifact has an empty reference")
+        );
+    }
+
+    #[test]
+    fn recording_enums_match_the_schema() {
+        let schema = schema();
+        let recording = &schema["$defs"]["recording_metadata"]["properties"];
+        let listed = |values: &serde_json::Value, rust: Vec<serde_json::Value>| {
+            assert_eq!(values.as_array().unwrap(), &rust);
+        };
+        listed(
+            &recording["status"]["enum"],
+            [RecordingStatus::Complete, RecordingStatus::Incomplete]
+                .iter()
+                .map(|v| serde_json::to_value(v).unwrap())
+                .collect(),
+        );
+        listed(
+            &recording["inspectability"]["enum"],
+            [Inspectability::Inspectable, Inspectability::Uninspectable]
+                .iter()
+                .map(|v| serde_json::to_value(v).unwrap())
+                .collect(),
+        );
+        listed(
+            &recording["source_artifacts"]["items"]["properties"]["retention"]["enum"],
+            [
+                Retention::Durable,
+                Retention::LocalPrivate,
+                Retention::RemoteRedacted,
+                Retention::Ephemeral,
+            ]
+            .iter()
+            .map(|v| serde_json::to_value(v).unwrap())
+            .collect(),
+        );
     }
 
     #[test]
