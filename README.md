@@ -22,21 +22,18 @@ surfacekit = { version = "0.7", default-features = false }
 
 | Module | Feature | Role |
 | --- | --- | --- |
-| `contract` | always | `Surface`, `Observation`, `EvidenceKind`, `Claim`, `Evidence`, `SurfacePacket`, JSON schema. |
+| `contract` | always | `Surface`, `Observation`, `EvidenceKind`, `Claim`, `Evidence`, `SurfacePacket` and its `validate_shape` check against the JSON schema in `schema/`. |
 | `notes` | always | `Notebook`, `Note`, `NoteDraft`, `NoteKind`: a critic's dated, append-only running notes, carried in the packet. |
 | `term` | `term` | Real PTY handles, `SessionIo`, capability profiles, emulator seam, VT100 observers, workspace diff, recording. |
 | `scenario` | `scenario` | Actors, action resolutions, encode, timeline, replay, regression cases, trials, evidence records, bounded live critique, stateless (`Critic`) or with a running notebook (`NotingCritic`). |
 | `judge` | `judge` | Deterministic checks, a provider-neutral judge seam, and order-swapped pairwise judging. |
 
-`scenario` requires `term`; `judge` requires `scenario`. The modules are not
-separate packages because a published crate cannot depend on unpublished path
-crates.
+`scenario` requires `term`; `judge` requires `scenario`.
 
 ## Status
 
-`0.1.0` through `0.7.0` are published. Run local checks with `cargo test`.
-Two live OpenRouter tests are opt-in. CI runs format, clippy, `cargo test`, a
-contract-only build, docs, and a publish dry-run.
+`0.1.0` through `0.7.0` are published. Changes on `main` that are not yet
+released are listed under "Unreleased" in `CHANGELOG.md`.
 
 ## Boundary
 
@@ -59,8 +56,9 @@ with the projects that already implement them.
 ## Development
 
 `just check` runs format, clippy, nextest (or `cargo test`), a contract-only
-build, docs, and a publish dry-run. `just e2e` runs the live OpenRouter pair.
-CI runs the same stages; see `docs/local-dev.md`. The design constraints from
+build, docs, and a publish dry-run; CI runs the same stages with `cargo test`.
+`just e2e` runs the two opt-in live OpenRouter tests and needs
+`OPENROUTER_API_KEY`. See `docs/local-dev.md`. The design constraints from
 the literature are in `docs/grounding.md`.
 
 ## License
