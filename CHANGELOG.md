@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.8.0 - 2026-11-01
+
 ### Changed (breaking)
 
 - `SurfacePacket` gains `recording: Option<RecordingMetadata>`, typed to the
