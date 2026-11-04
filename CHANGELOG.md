@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Fixed
+
+- `SurfacePacket::validate_shape` rejects an empty `scenario_id`, which the
+  schema forbids with `minLength: 1`.
+- `Notebook::validate`, and so `SurfacePacket::validate_shape`, rejects a
+  note whose text is longer than `MAX_NOTE_CHARS` (400) characters, the
+  schema's `maxLength` for note text. `Notebook::append` already cut drafts to
+  that length; a deserialized packet could carry a longer note.
+- `Timeline::from_jsonl` rejects an event whose `at_ms` is earlier than the
+  previous event's, naming the line, so a parsed timeline keeps the monotonic
+  order the module documents. Equal timestamps are still accepted.
+
 ## 0.8.0 - 2026-11-01
 
 ### Changed (breaking)

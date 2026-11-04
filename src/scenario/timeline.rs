@@ -123,10 +123,24 @@ impl Timeline {
         Ok(out)
     }
 
+    /// Parse one event per non-blank line. A timestamp earlier than the
+    /// previous event's is an error, since the record is monotonic.
     pub fn from_jsonl(input: &str) -> Result<Self, serde_json::Error> {
         let mut timeline = Self::new();
-        for line in input.lines().filter(|line| !line.trim().is_empty()) {
-            timeline.push(serde_json::from_str(line)?);
+        for (index, line) in input.lines().enumerate() {
+            if line.trim().is_empty() {
+                continue;
+            }
+            let event: Event = serde_json::from_str(line)?;
+            if event.at_ms() < timeline.duration_ms() {
+                return Err(serde::de::Error::custom(format!(
+                    "line {}: at_ms {} is earlier than the previous event's {}",
+                    index + 1,
+                    event.at_ms(),
+                    timeline.duration_ms()
+                )));
+            }
+            timeline.push(event);
         }
         Ok(timeline)
     }
