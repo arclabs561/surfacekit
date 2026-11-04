@@ -175,14 +175,18 @@ impl Notebook {
         out
     }
 
-    /// Structural rules for a recorded note list: ids strictly increase and
-    /// a revision names an earlier note.
+    /// Structural rules for a recorded note list: ids strictly increase, a
+    /// revision names an earlier note, and no text exceeds
+    /// [`MAX_NOTE_CHARS`] characters.
     pub fn validate(notes: &[Note]) -> Result<(), &'static str> {
         let mut seen = BTreeSet::new();
         let mut last = 0;
         for note in notes {
             if note.id <= last {
                 return Err("note ids must strictly increase");
+            }
+            if note.text.chars().count() > MAX_NOTE_CHARS {
+                return Err("a note text is longer than the schema allows");
             }
             if let Some(target) = note.revises {
                 if !seen.contains(&target) {

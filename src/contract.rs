@@ -267,14 +267,18 @@ impl SurfacePacket {
         self
     }
 
-    /// Version, observation authority, required evidence, at least one
-    /// claim, namespaced scenario claims, a well-formed note record, and
+    /// Version, a non-empty scenario id, observation authority, required
+    /// evidence, at least one claim, namespaced scenario claims, a
+    /// well-formed note record, and
     /// recording metadata that gives a reason when it is incomplete or
     /// uninspectable.
     /// Scenario-specific rules belong to [`SurfacePacket::validate`].
     pub fn validate_shape(&self) -> Result<(), &'static str> {
         if !SUPPORTED_SCHEMA_VERSIONS.contains(&self.schema_version) {
             return Err("unknown surface packet schema version");
+        }
+        if self.scenario_id.is_empty() {
+            return Err("scenario id is empty");
         }
         if self.schema_version < 3 && (!self.notes.is_empty() || !self.scenario_claims.is_empty()) {
             return Err("notes and scenario claims need schema version 3");
