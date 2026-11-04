@@ -145,6 +145,10 @@ pub struct SurfacePacket {
     pub scenario_id: String,
     pub surface: Surface,
     pub observation: Observation,
+    /// A set, so a packet whose JSON repeats a kind deserializes with the
+    /// duplicate merged and passes [`SurfacePacket::validate_shape`]. The
+    /// JSON schema (`uniqueItems`) is the check that rejects duplicates;
+    /// validate raw JSON against it when duplicates matter.
     pub evidence_kinds: BTreeSet<EvidenceKind>,
     pub claims: BTreeSet<Claim>,
     /// Claims a caller-owned scenario tests, namespaced as `scope:claim`
