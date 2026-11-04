@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.8.1 - 2026-11-04
+
 ### Fixed
 
 - `SurfacePacket::validate_shape` rejects an empty `scenario_id`, which the
