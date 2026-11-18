@@ -77,7 +77,7 @@ const REQUIRED_CLAIMS: &[Claim] = &[
 ];
 
 /// One observed artifact. The kind says what it proves; the payload is the
-/// caller-owned body. Null payloads are treated as absent.
+/// caller-owned body. An attached artifact must have a non-null payload.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Evidence {
     pub kind: EvidenceKind,
@@ -272,7 +272,8 @@ impl SurfacePacket {
     }
 
     /// Version, a non-empty scenario id, observation authority, required
-    /// evidence, at least one claim, namespaced scenario claims, a
+    /// evidence declarations, non-null attached payloads, at least one claim,
+    /// namespaced scenario claims, a
     /// well-formed note record, and
     /// recording metadata that gives a reason when it is incomplete or
     /// uninspectable.
@@ -306,6 +307,9 @@ impl SurfacePacket {
         if self.claims.is_empty() && self.scenario_claims.is_empty() {
             return Err("surface packet states no claims");
         }
+        if self.evidence.iter().any(|item| item.payload.is_null()) {
+            return Err("evidence payload is null");
+        }
         Ok(())
     }
 
@@ -333,9 +337,6 @@ impl SurfacePacket {
         for item in &self.evidence {
             if !self.evidence_kinds.contains(&item.kind) {
                 return Err("evidence kind was not declared");
-            }
-            if item.payload.is_null() {
-                return Err("evidence payload is null");
             }
             covered.insert(item.kind);
         }
@@ -573,6 +574,29 @@ mod tests {
             packet.validate_complete(),
             Err("declared evidence kind has no payload")
         );
+    }
+
+    #[test]
+    fn shape_checks_attached_payloads_before_coverage_is_complete() {
+        let mut packet = SurfacePacket::output_recovery_room(Surface::Cli);
+        packet.evidence.push(Evidence {
+            kind: EvidenceKind::Argv,
+            payload: serde_json::json!(["example"]),
+        });
+        for version in SUPPORTED_SCHEMA_VERSIONS {
+            packet.schema_version = *version;
+            assert!(packet.validate_shape().is_ok());
+            assert!(packet.validate().is_ok());
+            assert_eq!(
+                packet.validate_complete(),
+                Err("declared evidence kind has no payload")
+            );
+            let mut raw = serde_json::to_value(&packet).unwrap();
+            raw["evidence"][0]["payload"] = serde_json::Value::Null;
+            let malformed: SurfacePacket = serde_json::from_value(raw).unwrap();
+            assert_eq!(malformed.validate_shape(), Err("evidence payload is null"));
+            assert_eq!(malformed.validate(), Err("evidence payload is null"));
+        }
     }
 
     #[test]
