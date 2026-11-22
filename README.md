@@ -9,13 +9,13 @@ The code is extracted from the terminal harness in [piku](https://github.com/arc
 Default build (contract, PTY observation, scenarios, judge):
 
 ```toml
-surfacekit = "0.7"
+surfacekit = "0.8"
 ```
 
 Contract only, without PTY, VT100, or judge dependencies:
 
 ```toml
-surfacekit = { version = "0.7", default-features = false }
+surfacekit = { version = "0.8", default-features = false }
 ```
 
 ## Layers
@@ -32,8 +32,8 @@ surfacekit = { version = "0.7", default-features = false }
 
 ## Status
 
-`0.1.0` through `0.7.0` are published. Changes on `main` that are not yet
-released are listed under "Unreleased" in `CHANGELOG.md`.
+See [crates.io](https://crates.io/crates/surfacekit/versions) for published
+versions and [the changelog](CHANGELOG.md) for changes to the packet contract.
 
 ## Boundary
 
